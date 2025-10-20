@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+// User model (synced with Supabase Auth)
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  password      String
+  role          Role      @default(USER)
+  photoURL      String?
+  emailVerified Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  orders        Order[]
+  
+  @@map("users")
+}
+
+// Order model
+model Order {
+  id            String      @id @default(uuid())
+  userId        String
+  orderNumber   String      @unique @default(cuid())
+  
+  // Customer info
+  customerName  String
+  customerEmail String
+  customerPhone String?
+  
+  // Order details
+  serviceType   ServiceType
+  paperSize     PaperSize
+  colorType     ColorType
+  copies        Int         @default(1)
+  pages         Int         @default(1)
+  bindingType   BindingType?
+  
+  // Files
+  fileUrl       String?
+  fileName      String?
+  
+  // Pricing
+  pricePerPage  Float
+  totalPrice    Float
+  
+  // Status
+  status        OrderStatus @default(PENDING)
+  
+  // Notes
+  notes         String?
+  adminNotes    String?
+  
+  // Timestamps
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  completedAt   DateTime?
+  
+  // Relations
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+// Enums
+enum Role {
+  USER
+  STAFF
+  ADMIN
+}
+
+enum ServiceType {
+  DOCUMENT_PRINTING
+  RUSH_ID
+  BINDING
+  LAMINATION
+}
+
+enum PaperSize {
+  A4
+  A3
+  LETTER
+  LEGAL
+  CUSTOM
+}
+
+enum ColorType {
+  BLACK_AND_WHITE
+  COLOR
+  MIX
+}
+
+enum BindingType {
+  NONE
+  WIREBIND
+  SOFT
+  HARD
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  READY
+  ON_DELIVERY
+  COMPLETED
+  CANCELLED
+}

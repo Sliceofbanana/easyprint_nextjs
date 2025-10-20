@@ -3,9 +3,9 @@ import { type Config } from 'tailwindcss';
 
 export default {
   content: [
-    './app/**/*.{ts,tsx,js,jsx}',
-    './pages/**/*.{ts,tsx,js,jsx}',
-    './components/**/*.{ts,tsx,js,jsx}'
+    './src/**/*.{ts,tsx,js,jsx}',           // ✅ Scan everything in src/
+    './src/app/**/*.{ts,tsx,js,jsx}',       // ✅ Explicit app directory
+    './src/components/**/*.{ts,tsx,js,jsx}', // ✅ Explicit components
   ],
   theme: {
     extend: {}
