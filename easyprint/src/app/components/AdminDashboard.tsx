@@ -3,8 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '../components/ui/Use-Toast';
 import { motion } from 'framer-motion';
-import { Users, Package, Settings as SettingsIcon, FileText, LogOut } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { Users, Package, FileText } from 'lucide-react';
 
 // ✅ Define the expected props
 interface AdminDashboardProps {
@@ -31,62 +30,45 @@ interface Order {
   createdAt: string;
 }
 
-interface Post {
-  id: string;
-  title: string;
-  content: string;
-}
-
-interface Settings {
-  theme: string;
-  notifications: boolean;
-}
-
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const { toast } = useToast();
 
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
 
   // ✅ Fetch data on mount
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch staff
-        const staffRes = await fetch('/api/admin/staff');
-        if (staffRes.ok) {
-          const staffData = await staffRes.json();
-          setStaffList(staffData);
-        }
-
-        // Fetch orders
-        const ordersRes = await fetch('/api/orders');
-        if (ordersRes.ok) {
-          const ordersData = await ordersRes.json();
-          setOrders(ordersData);
-        }
-
-        // TODO: Add posts and settings API calls when ready
-        // const postsRes = await fetch('/api/admin/posts');
-        // const settingsRes = await fetch('/api/admin/settings');
-
-      } catch (error) {
-        console.error('Error fetching admin data:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load dashboard data',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false); // ✅ Always set loading to false
+  const fetchData = async () => {
+    try {
+      // Fetch staff
+      const staffRes = await fetch('/api/admin/staff');
+      if (staffRes.ok) {
+        const staffData = await staffRes.json();
+        setStaffList(staffData);
       }
-    };
 
-    fetchData();
-  }, [toast]);
+      // ✅ Fetch orders from API
+      const ordersRes = await fetch('/api/orders');
+      if (ordersRes.ok) {
+        const ordersData = await ordersRes.json();
+        setOrders(ordersData);
+      }
+
+    } catch (error) {
+      console.error('Error fetching admin data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load dashboard data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+}, [toast]);
 
   if (loading) {
     return (
@@ -115,18 +97,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     <div className="bg-gray-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600">Welcome back, {user.email}</p>
-          </div>
-          <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-gray-600">Welcome back, {user.email}</p>
         </div>
 
         {/* Stats Cards */}

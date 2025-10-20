@@ -40,6 +40,29 @@ export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
   const { toast } = useToast();
 
   useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await fetch('/api/orders');
+        if (!response.ok) throw new Error('Failed to fetch orders');
+        
+        const data = await response.json();
+        setOrders(data);
+        setActiveOrders(
+          data.filter((o: Order) => !['COMPLETED', 'CANCELLED'].includes(o.status))
+        );
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load orders',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    fetchOrders();
+  }, [toast]);
+
+  useEffect(() => {
     const allOrders = JSON.parse(localStorage.getItem('orders') || '[]') as Order[];
     const userOrders = allOrders.filter(
       (order) =>
@@ -210,16 +233,6 @@ export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
                     <HelpCircle className="w-5 h-5 mr-3 text-gray-500" />
                     <span>Help & Support</span>
                   </Link>
-                  {/* ✅ Add Logout Option at Bottom */}
-                  {onLogout && (
-                    <button
-                      onClick={onLogout}
-                      className="w-full flex items-center p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
-                    >
-                      <LogOut className="w-5 h-5 mr-3" />
-                      <span>Logout</span>
-                    </button>
-                  )}
                 </nav>
               </div>
             </div>

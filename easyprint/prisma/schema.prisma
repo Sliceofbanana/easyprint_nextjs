@@ -3,77 +3,56 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-// User model (synced with Supabase Auth)
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
+  id            String   @id @default(uuid())
+  email         String   @unique
   name          String?
-  password      String
-  role          Role      @default(USER)
+  role          Role     @default(USER)
   photoURL      String?
-  emailVerified Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  // Relations
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  password      String
   orders        Order[]
-  
+
   @@map("users")
 }
 
-// Order model
 model Order {
-  id            String      @id @default(uuid())
+  id            String       @id @default(uuid())
   userId        String
-  orderNumber   String      @unique @default(cuid())
-  
-  // Customer info
+  orderNumber   String       @unique @default(cuid())
   customerName  String
   customerEmail String
   customerPhone String?
-  
-  // Order details
   serviceType   ServiceType
   paperSize     PaperSize
   colorType     ColorType
-  copies        Int         @default(1)
-  pages         Int         @default(1)
+  copies        Int          @default(1)
+  pages         Int          @default(1)
   bindingType   BindingType?
-  
-  // Files
   fileUrl       String?
   fileName      String?
-  
-  // Pricing
   pricePerPage  Float
   totalPrice    Float
-  
-  // Status
-  status        OrderStatus @default(PENDING)
-  
-  // Notes
+  status        OrderStatus  @default(PENDING)
   notes         String?
   adminNotes    String?
-  
-  // Timestamps
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   completedAt   DateTime?
-  
-  // Relations
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([status])
   @@index([createdAt])
   @@map("orders")
 }
 
-// Enums
 enum Role {
   USER
   STAFF

@@ -10,8 +10,9 @@ import {
   Filter,
   Eye,
   Bell,
-  LogOut,
   ChevronDown,
+  QrCode,      // ✅ Add this
+  FileText,    // ✅ Add this
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
 
@@ -27,14 +28,23 @@ interface StaffDashboardProps {
 
 interface Order {
   id: string;
+  orderNumber?: string;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
   totalPrice: number;
   status: string;
   createdAt: string;
   updatedAt: string;
   fileName?: string;
   fileUrl?: string;
+  paperSize?: string;
+  colorType?: string;
+  copies?: number;
+  pages?: number;
+  bindingType?: string;
+  notes?: string;
+  adminNotes?: string;
 }
 
 const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
@@ -57,7 +67,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
     { value: 'CANCELLED', label: 'Cancelled' },
   ];
 
-  // ✅ Fetch orders from your API (instead of Supabase directly)
+  // ✅ Fetch orders from API
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
@@ -68,6 +78,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
         const data = await response.json();
         setOrders(data || []);
       } catch (error) {
+        console.error('Error fetching orders:', error);
         toast({
           title: 'Error',
           description: 'Failed to load orders',
@@ -88,8 +99,9 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
     if (searchTerm) {
       filtered = filtered.filter(
         (order) =>
-          order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+          (order.id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (order.orderNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (order.customerName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       );
     }
 
@@ -119,7 +131,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
 
       toast({
         title: 'Status Updated',
-        description: `Order ${orderId} is now ${getStatusLabel(newStatus)}.`,
+        description: `Order updated successfully.`,
       });
     } catch (error) {
       toast({
@@ -156,7 +168,12 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
 
   if (loading) {
     return (
-      <p className="text-center mt-10 text-gray-600">Loading orders...</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading orders...</p>
+        </div>
+      </div>
     );
   }
 
@@ -172,11 +189,10 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
           <div className="flex items-center space-x-4">
             <div className="relative">
               <Bell className="w-6 h-6 text-gray-600" />
-              <div className="absolute top-0 right-0 bg-red-500 text-white text-xs px-1.5 rounded-full">3</div>
+              <div className="absolute top-0 right-0 bg-red-500 text-white text-xs px-1.5 rounded-full">
+                {stats.pending}
+              </div>
             </div>
-            <button onClick={onLogout} className="p-2 text-gray-600 hover:text-red-600">
-              <LogOut className="w-5 h-5" />
-            </button>
           </div>
         </div>
 
@@ -256,7 +272,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex-1 min-w-[200px]">
-                      <h3 className="font-semibold">#{order.id}</h3>
+                      <h3 className="font-semibold">#{order.orderNumber || order.id}</h3>
                       <p className="text-sm text-gray-600">{order.customerName}</p>
                       <p className="text-xs text-gray-500">
                         Created: {new Date(order.createdAt).toLocaleString()}
@@ -298,7 +314,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {/* Order Modal */}
+        {/* ✅ Order Modal */}
         {selectedOrder && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <motion.div
@@ -316,35 +332,121 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                 </button>
               </div>
               <div className="p-6 space-y-4">
-                <p><strong>Order ID:</strong> {selectedOrder.id}</p>
-                <p>
-                  <strong>Customer:</strong> {selectedOrder.customerName} (
-                  {selectedOrder.customerEmail})
-                </p>
-                <p><strong>Total:</strong> ₱{selectedOrder.totalPrice}</p>
-                <p>
-                  <strong>Status:</strong>{' '}
-                  <span
-                    className={`px-3 py-1 rounded-lg text-sm font-medium ${getStatusColor(
-                      selectedOrder.status
-                    )}`}
-                  >
-                    {getStatusLabel(selectedOrder.status)}
-                  </span>
-                </p>
-                {selectedOrder.fileUrl && (
-                  <div className="pt-2 border-t">
-                    <h3 className="font-semibold">File</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Order ID</p>
+                    <p className="font-semibold">#{selectedOrder.orderNumber || selectedOrder.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Status</p>
+                    <span className={`px-3 py-1 rounded-lg text-sm font-medium ${getStatusColor(selectedOrder.status)}`}>
+                      {getStatusLabel(selectedOrder.status)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-2">Customer Information</h3>
+                  <p><strong>Name:</strong> {selectedOrder.customerName}</p>
+                  <p><strong>Email:</strong> {selectedOrder.customerEmail}</p>
+                  {selectedOrder.customerPhone && (
+                    <p><strong>Phone:</strong> {selectedOrder.customerPhone}</p>
+                  )}
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-2">Order Details</h3>
+                  {selectedOrder.paperSize && <p><strong>Paper Size:</strong> {selectedOrder.paperSize}</p>}
+                  {selectedOrder.colorType && <p><strong>Color:</strong> {selectedOrder.colorType}</p>}
+                  {selectedOrder.copies && <p><strong>Copies:</strong> {selectedOrder.copies}</p>}
+                  {selectedOrder.pages && <p><strong>Pages:</strong> {selectedOrder.pages}</p>}
+                  {selectedOrder.bindingType && <p><strong>Binding:</strong> {selectedOrder.bindingType}</p>}
+                  <p><strong>Total:</strong> ₱{selectedOrder.totalPrice}</p>
+                </div>
+
+                {/* ✅ Payment Proof Section */}
+                {selectedOrder.adminNotes && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <QrCode className="w-5 h-5 text-blue-900" />
+                      Payment Proof
+                    </h3>
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-sm">
+                        <strong>Reference Number:</strong>{' '}
+                        <span className="font-mono text-blue-900">
+                          {selectedOrder.adminNotes.replace('Payment Ref: ', '')}
+                        </span>
+                      </p>
+                      {selectedOrder.fileUrl && (
+                        <div className="mt-2">
+                          <p className="text-sm mb-1"><strong>Screenshot:</strong></p>
+                          <a
+                            href={selectedOrder.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:underline text-sm"
+                          >
+                            View Payment Screenshot
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedOrder.fileName && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-2">Uploaded File</h3>
                     <a
-                      href={selectedOrder.fileUrl}
+                      href={selectedOrder.fileUrl || '#'}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline flex items-center gap-2"
                     >
+                      <FileText className="w-4 h-4" />
                       {selectedOrder.fileName}
                     </a>
                   </div>
                 )}
+
+                {selectedOrder.notes && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-2">Customer Notes</h3>
+                    <p className="text-sm text-gray-600">{selectedOrder.notes}</p>
+                  </div>
+                )}
+
+                {/* ✅ Staff Notes */}
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-2">Staff Notes</h3>
+                  <textarea
+                    value={selectedOrder.adminNotes || ''}
+                    onChange={(e) => setSelectedOrder({ ...selectedOrder, adminNotes: e.target.value })}
+                    className="w-full p-3 border rounded-lg"
+                    rows={3}
+                    placeholder="Add internal notes here..."
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`/api/orders/${selectedOrder.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ adminNotes: selectedOrder.adminNotes }),
+                        });
+                        if (response.ok) {
+                          toast({ title: 'Notes Updated', description: 'Staff notes saved successfully.' });
+                        }
+                      } catch (error) {
+                        toast({ title: 'Error', description: 'Failed to update notes', variant: 'destructive' });
+                      }
+                    }}
+                    className="mt-2 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
+                  >
+                    Save Notes
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

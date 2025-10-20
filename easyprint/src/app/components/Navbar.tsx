@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { User, LogOut, LayoutDashboard, Upload, Menu, X } from "lucide-react";
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, LogOut, LayoutDashboard, Upload, Menu, X } from 'lucide-react';
 
 type NavbarProps = {
   user?: { name?: string; role?: string };
@@ -46,10 +46,10 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
               </div>
               <div className="text-sm">
                 <p className="font-medium text-gray-700">
-                  {user?.name || "User"}
+                  {user?.name || 'User'}
                 </p>
                 <p className="text-xs text-gray-500 capitalize">
-                  {user?.role || "user"}
+                  {user?.role || 'user'}
                 </p>
               </div>
             </div>
@@ -81,59 +81,61 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
         </div>
 
         {/* Mobile Menu */}
-        {isMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-gray-200 py-4"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                <div className="w-10 h-10 bg-blue-900 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-white" />
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden border-t border-gray-200 py-4"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-10 h-10 bg-blue-900 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-700">
+                      {user?.name || 'User'}
+                    </p>
+                    <p className="text-sm text-gray-500 capitalize">
+                      {user?.role || 'user'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-gray-700">
-                    {user?.name || "User"}
-                  </p>
-                  <p className="text-sm text-gray-500 capitalize">
-                    {user?.role || "user"}
-                  </p>
-                </div>
+
+                <Link
+                  href="/dashboard"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center space-x-2 p-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <LayoutDashboard className="w-5 h-5" />
+                  <span>Dashboard</span>
+                </Link>
+
+                <Link
+                  href="/order"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center space-x-2 p-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span>New Order</span>
+                </Link>
+
+                <button
+                  onClick={() => {
+                    onLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full flex items-center space-x-2 p-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span>Logout</span>
+                </button>
               </div>
-
-              <Link
-                href="/dashboard"
-                onClick={() => setIsMenuOpen(false)}
-                className="flex items-center space-x-2 p-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                <span>Dashboard</span>
-              </Link>
-
-              <Link
-                href="/order"
-                onClick={() => setIsMenuOpen(false)}
-                className="flex items-center space-x-2 p-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
-              >
-                <Upload className="w-5 h-5" />
-                <span>New Order</span>
-              </Link>
-
-              <button
-                onClick={() => {
-                  onLogout();
-                  setIsMenuOpen(false);
-                }}
-                className="w-full flex items-center space-x-2 p-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </header>
   );
