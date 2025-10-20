@@ -8,16 +8,18 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
+  id            String          @id @default(uuid())
+  email         String          @unique
   name          String?
-  role          Role     @default(USER)
+  role          Role            @default(USER)
   photoURL      String?
-  emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  emailVerified Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   password      String
   orders        Order[]
+  messages      Message[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -53,6 +55,91 @@ model Order {
   @@map("orders")
 }
 
+// ✅ NEW: Product Management
+model Product {
+  id              String           @id @default(uuid())
+  name            String
+  description     String?
+  category        ProductCategory
+  basePrice       Float
+  attributes      Json // { size: [], paperType: [], finish: [], color: [] }
+  pricingTiers    Json // { bulk: [], promo: [] }
+  sampleImages    String[] // Array of Cloudinary URLs
+  turnaroundTime  String // e.g., "1-day rush", "3-day regular"
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@map("products")
+}
+
+// ✅ NEW: Inventory Management
+model Inventory {
+  id            String   @id @default(uuid())
+  itemName      String
+  category      String // ink, paper, etc.
+  quantity      Int
+  unit          String // reams, bottles, pcs
+  minStockLevel Int // Trigger alert when below this
+  lastRestocked DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("inventory")
+}
+
+// ✅ NEW: Customer Messages/Inquiries
+model Message {
+  id        String        @id @default(uuid())
+  userId    String
+  subject   String
+  message   String
+  status    MessageStatus @default(PENDING)
+  response  String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("messages")
+}
+
+// ✅ NEW: Notifications
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String // order_update, promo, system
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ✅ NEW: Payment Methods
+model PaymentMethod {
+  id          String   @id @default(uuid())
+  name        String // GCash, PayPal, COD, Bank Transfer
+  type        String // ewallet, bank, cash
+  details     Json // { accountNumber, accountName, etc. }
+  qrCodeUrl   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school        String?         // School/Company name
+  organization  String?         // Optional organization/department
+  phone         String?         // Contact number
+
+  @@map("payment_methods")
+}
+
+// ✅ Enums
 enum Role {
   USER
   STAFF
@@ -94,4 +181,18 @@ enum OrderStatus {
   ON_DELIVERY
   COMPLETED
   CANCELLED
+}
+
+enum ProductCategory {
+  PRINTING
+  BINDING
+  LAMINATION
+  ID_PHOTO
+  CUSTOM
+}
+
+enum MessageStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
 }

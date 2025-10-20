@@ -13,6 +13,7 @@ import {
   CheckCircle,
   QrCode,
   Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "../components/ui/Use-Toast";
 import { useSession } from 'next-auth/react';
@@ -42,13 +43,20 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     contactPhone: "",
     contactEmail: "user@example.com",
   });
-  const [paymentProof, setPaymentProof] = useState<{ file: File | null; ref: string }>({
-    file: null,
-    ref: "",
-  });
+// Update paymentProof state
+const [paymentProof, setPaymentProof] = useState<{ 
+  file: File | null; 
+  ref: string;
+  url?: string;
+}>({
+  file: null,
+  ref: "",
+  url: "", 
+});
   const [isDragOver, setIsDragOver] = useState(false);
   const [orderTotal, setOrderTotal] = useState(0);
   const [orderId, setOrderId] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const proofInputRef = useRef<HTMLInputElement>(null);
@@ -124,21 +132,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     
     setOrderTotal(total);
     
-    // ✅ Enhanced debug log
-    console.log('📊 Price Calculation Breakdown:', {
-      files: files.length,
-      totalPagesInFiles,
-      copies,
-      paperSize: sizeKey,
-      printMode: modeKey,
-      pricePerPage: `₱${pricePerPage}`,
-      calculation: `${totalPagesInFiles} pages × ${copies} copies × ₱${pricePerPage} = ₱${printingCost.toFixed(2)}`,
-      printingCost: `₱${printingCost.toFixed(2)}`,
-      bindingCost: `₱${bindingCost.toFixed(2)}`,
-      deliveryCost: `₱${deliveryCost.toFixed(2)}`,
-      total: `₱${total.toFixed(2)}`,
-    });
-    
     return total;
   }, [files, orderDetails]);
 
@@ -146,26 +139,92 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     calculateTotal();
   }, [calculateTotal]);
 
-  const handleFileUpload = (uploadedFiles: FileList | null) => {
-    if (!uploadedFiles) return;
-    const newFiles = Array.from(uploadedFiles).map((file) => ({
-      id: Date.now() + Math.random(),
-      file,
-      name: file.name,
-      size: file.size,
-      pages: 1, // ✅ CHANGED: Default to 1 page for simpler testing
-    }));
-    setFiles((prev) => [...prev, ...newFiles]);
-    toast({ title: "Files Uploaded", description: `${newFiles.length} file(s) added.` });
-  };
+  const uploadFileToCloudinary = async (file: File, type: 'document' | 'payment') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', type);
 
-  const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPaymentProof((prev) => ({ ...prev, file }));
-      toast({ title: "Screenshot Uploaded", description: file.name });
-    }
-  };
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to upload file');
+  }
+
+  return await response.json();
+};
+
+// Update handleFileUpload function
+const handleFileUpload = async (uploadedFiles: FileList | null) => {
+  if (!uploadedFiles) return;
+  
+  setIsUploading(true);
+  
+  try {
+    const uploadPromises = Array.from(uploadedFiles).map(async (file) => {
+      const uploadResult = await uploadFileToCloudinary(file, 'document');
+      
+      return {
+        id: Date.now() + Math.random(),
+        file,
+        name: file.name,
+        size: file.size,
+        pages: 1,
+        url: uploadResult.url,
+        publicId: uploadResult.publicId,
+      };
+    });
+
+    const newFiles = await Promise.all(uploadPromises);
+    setFiles((prev) => [...prev, ...newFiles]);
+    
+    toast({ 
+      title: "Files Uploaded", 
+      description: `${newFiles.length} file(s) uploaded successfully.` 
+    });
+  } catch (error) {
+    toast({
+      title: "Upload Failed",
+      description: "Failed to upload files. Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsUploading(false);
+  }
+};
+
+// Update handleProofUpload function
+const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  setIsUploading(true);
+
+  try {
+    const uploadResult = await uploadFileToCloudinary(file, 'payment');
+    
+    setPaymentProof({
+      file,
+      ref: paymentProof.ref,
+      url: uploadResult.url,
+    });
+
+    toast({ 
+      title: "Screenshot Uploaded", 
+      description: file.name 
+    });
+  } catch (error) {
+    toast({
+      title: "Upload Failed",
+      description: "Failed to upload payment proof.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsUploading(false);
+  }
+};
 
   const nextStep = async () => {
     if (currentStep === 1 && files.length === 0) {
@@ -189,7 +248,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     }
 
     if (currentStep === 6) {
-      if (!paymentProof.ref || !paymentProof.file) {
+      if (!paymentProof.ref || !paymentProof.url) {
         toast({
           title: "Payment Required",
           description: "Please provide reference number and upload payment screenshot.",
@@ -199,32 +258,70 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       }
 
       try {
+        // ✅ Calculate all required values
+        const totalPages = files.reduce((sum, f) => sum + (f.pages || 1), 0);
+        const pricePerPage = PRINT_PRICES[orderDetails.paperSize]?.[orderDetails.printMode] || 0;
+
+        // ✅ Map print mode to color type
+        const colorTypeMap: Record<string, string> = {
+          black: 'BLACK_AND_WHITE',
+          partial: 'COLOR',
+          full: 'COLOR',
+          borderless: 'COLOR',
+        };
+
+         const paperSizeMap: Record<string, string> = {
+          short: 'LETTER',
+          a4: 'A4',
+          long: 'LEGAL',
+          a3: 'A3',
+        };
+
+        // ✅ Map binding type
+        const bindingTypeMap: Record<string, string> = {
+          none: 'NONE',
+          'book-soft': 'BOOK_SOFT',
+          'book-hard': 'BOOK_HARD',
+          'wire-soft': 'WIRE_SOFT',
+          'wire-hard': 'WIRE_HARD',
+        };
+
+        const orderPayload = {
+          customerName: orderDetails.contactName,
+          customerEmail: orderDetails.contactEmail,
+          customerPhone: orderDetails.contactPhone,
+          serviceType: 'DOCUMENT_PRINTING',
+          paperSize: paperSizeMap[orderDetails.paperSize] || 'A4',
+          colorType: colorTypeMap[orderDetails.printMode] || 'BLACK_AND_WHITE',
+          copies: orderDetails.copies,
+          pages: totalPages,
+          bindingType: bindingTypeMap[orderDetails.binding] || 'NONE',
+          fileUrl: files[0]?.url || '',
+          fileName: files[0]?.name || 'document.pdf',
+          pricePerPage: pricePerPage,
+          totalPrice: orderTotal,
+          notes: orderDetails.specialInstructions || '',
+          paymentProofUrl: paymentProof.url,
+          paymentProof: {
+            ref: paymentProof.ref,
+            fileName: paymentProof.file?.name || 'payment_proof.jpg',
+            url: paymentProof.url,
+          },
+        };
+
+        console.log('📤 Sending order payload:', orderPayload);
+
         const response = await fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customerName: orderDetails.contactName,
-            customerEmail: orderDetails.contactEmail,
-            customerPhone: orderDetails.contactPhone,
-            serviceType: 'DOCUMENT_PRINTING',
-            paperSize: orderDetails.paperSize.toUpperCase(),
-            colorType: orderDetails.printMode.toUpperCase() === 'BLACK' ? 'BLACK_AND_WHITE' : 'COLOR',
-            copies: orderDetails.copies,
-            pages: files.reduce((sum, f) => sum + (f.pages || 1), 0),
-            bindingType: orderDetails.binding.toUpperCase(),
-            fileUrl: '',
-            fileName: files[0]?.name || 'document.pdf',
-            pricePerPage: PRINT_PRICES[orderDetails.paperSize]?.[orderDetails.printMode] || 0,
-            totalPrice: orderTotal,
-            notes: orderDetails.specialInstructions,
-            paymentProof: {
-              ref: paymentProof.ref,
-              fileName: paymentProof.file.name,
-            },
-          }),
+          body: JSON.stringify(orderPayload),
         });
 
-        if (!response.ok) throw new Error('Failed to create order');
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ Order creation failed:', errorData);
+          throw new Error(errorData.error || 'Failed to create order');
+        }
 
         const data = await response.json();
         setOrderId(data.order.orderNumber);
@@ -234,9 +331,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
           description: "Your payment is being verified.",
         });
       } catch (error) {
+        console.error('Order submission error:', error);
         toast({
           title: "Error",
-          description: "Failed to place order. Please try again.",
+          description: error instanceof Error ? error.message : "Failed to place order. Please try again.",
           variant: "destructive",
         });
         return;
@@ -339,10 +437,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   onChange={(e) => setOrderDetails({ ...orderDetails, paperSize: e.target.value })}
                   className="w-full p-3 border rounded-lg"
                 >
-                  <option value="short">Short (8.5" × 11") - from ₱{PRINT_PRICES.short.black}/page</option>
-                  <option value="a4">A4 - from ₱{PRINT_PRICES.a4.black}/page</option>
-                  <option value="long">Long (8.5" × 13") - from ₱{PRINT_PRICES.long.black}/page</option>
-                  <option value="a3">A3 - from ₱{PRINT_PRICES.a3.black}/page</option>
+                <option value="short">Letter (8.5" × 11") - from ₱{PRINT_PRICES.short.black}/page</option>
+                <option value="a4">A4 - from ₱{PRINT_PRICES.a4.black}/page</option>
+                <option value="long">Legal (8.5" × 13") - from ₱{PRINT_PRICES.long.black}/page</option>
+                <option value="a3">A3 - from ₱{PRINT_PRICES.a3.black}/page</option>
                 </select>
               </div>
 
