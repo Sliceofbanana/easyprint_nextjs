@@ -18,6 +18,8 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
+import { AlertTriangle, Bell } from 'lucide-react';
+import LowStockModal from './ui/LowStockModal';
 
 // --- Types ---
 interface StaffDashboardProps {
@@ -60,6 +62,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'settings'>('orders');
+  const [showLowStockModal, setShowLowStockModal] = useState(false);
 
   const statusOptions = [
     { value: 'all', label: 'All Orders' },
@@ -448,11 +451,23 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
     <div className="bg-gray-50 min-h-full py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+      <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
           <h1 className="text-3xl font-bold text-gray-900">Staff Dashboard</h1>
           <p className="text-gray-600">Welcome back, {user.name || user.email}!</p>
         </div>
-
+        
+          {/* ✅ Low Stock Alert Button - Right Side */}
+          <button
+            onClick={() => setShowLowStockModal(true)}
+            className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-lg hover:shadow-xl"
+            title="Report Low Stock Items"
+          >
+            <AlertTriangle className="w-5 h-5" />
+            <span>Low Stock Alert</span>
+          </button>
+        </div>
+        
         {/* ✅ Tab Navigation */}
         <div className="bg-white rounded-xl shadow-lg border mb-8 overflow-hidden">
           <div className="flex border-b overflow-x-auto">
@@ -474,6 +489,8 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
               </button>
             ))}
           </div>
+
+          
 
           {/* ✅ Tab Content */}
           <div className="p-6">
@@ -568,6 +585,11 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
             </motion.div>
           </div>
         )}
+          {/* Low Stock Modal */}
+          <LowStockModal
+          isOpen={showLowStockModal}
+          onClose={() => setShowLowStockModal(false)}
+        />
       </div>
     </div>
   );

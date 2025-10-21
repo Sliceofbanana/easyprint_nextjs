@@ -13,6 +13,9 @@ model User {
   name          String?
   role          Role            @default(USER)
   photoURL      String?
+  school        String?
+  organization  String?
+  phone         String?
   emailVerified Boolean         @default(false)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -93,7 +96,7 @@ model Message {
   id        String        @id @default(uuid())
   userId    String
   subject   String
-  message   String
+  message   String        @db.Text
   status    MessageStatus @default(PENDING)
   response  String?
   createdAt DateTime      @default(now())
@@ -105,16 +108,17 @@ model Message {
   @@map("messages")
 }
 
-// ✅ NEW: Notifications
 model Notification {
-  id        String   @id @default(uuid())
+  id        String   @id @default(cuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // LOW_STOCK, ORDER_UPDATE, etc.
   title     String
   message   String
-  type      String // order_update, promo, system
+  data      Json?    // Additional data (e.g., inventory item details)
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([isRead])
