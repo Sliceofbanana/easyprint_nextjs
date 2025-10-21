@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       success: true,
       order: {
         id: order.id,
-        orderNumber: `MQ_${order.orderNumber}`, // ✅ Add prefix
+        orderNumber: `MQ_${order.orderNumber}`,
         status: order.status,
         createdAt: order.createdAt.toISOString(),
       },

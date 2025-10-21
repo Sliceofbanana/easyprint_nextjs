@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import prisma from '../../../lib/prisma';
+import prisma from '../../../../lib/prisma'; // ✅ Correct path
 
 // GET user profile
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    
+    console.log('👤 Profile Session:', session); // ✅ Debug log
+    
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -42,6 +45,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -50,7 +54,6 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { name, school, organization, phone } = body;
 
-    // Validate required fields
     if (!name || !school) {
       return NextResponse.json(
         { error: 'Name and school are required' },

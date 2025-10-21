@@ -6,26 +6,27 @@ export default withAuth(
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
-    // Role-based access control
+    console.log('🔐 Middleware - Path:', path, 'Role:', token?.role); // ✅ Debug log
+
     const role = token?.role as string | undefined;
 
-    // Admin routes - only ADMIN can access
+    // Admin routes
     if (path.startsWith("/admin")) {
-      if (role !== "ADMIN" && role !== "admin") {
+      if (role?.toUpperCase() !== "ADMIN") {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
     }
 
-    // Staff routes - only STAFF can access
+    // Staff routes
     if (path.startsWith("/staff")) {
-      if (role !== "STAFF" && role !== "staff") {
+      if (role?.toUpperCase() !== "STAFF") {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
     }
 
-    // User routes - only USER can access
+    // User routes
     if (path.startsWith("/user")) {
-      if (role !== "USER" && role !== "user") {
+      if (role?.toUpperCase() !== "USER") {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
     }
@@ -39,7 +40,6 @@ export default withAuth(
   }
 );
 
-// Protect these routes
 export const config = {
   matcher: [
     "/dashboard/:path*",
@@ -47,5 +47,7 @@ export const config = {
     "/staff/:path*",
     "/user/:path*",
     "/order/:path*",
+    "/profile/:path*",
+    "/support/:path*",
   ],
 };

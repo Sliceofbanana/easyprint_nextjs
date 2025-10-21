@@ -1,46 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../auth/[...nextauth]/route';
-import prisma from '../../../../lib/prisma';
+import { authOptions } from '../auth/[...nextauth]/route';
+import prisma from '../../../lib/prisma'; // ✅ Correct path
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { messageId: string } }
-) {
+// GET user's own messages
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    
+    console.log('📧 Session:', session); // ✅ Debug log
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as { role: string };
-    if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const user = session.user as { id: string };
+
+    const messages = await prisma.message.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return NextResponse.json(messages);
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// POST - Send new support message
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const user = session.user as { id: string };
     const body = await req.json();
-    const { status, response } = body;
+    const { subject, message } = body;
 
-    const updateData: any = {};
-    if (status) updateData.status = status;
-    if (response) updateData.response = response;
+    if (!subject || !message) {
+      return NextResponse.json(
+        { error: 'Subject and message are required' },
+        { status: 400 }
+      );
+    }
 
-    const updatedMessage = await prisma.message.update({
-      where: { id: params.messageId },
-      data: updateData,
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
+    const newMessage = await prisma.message.create({
+      data: {
+        userId: user.id,
+        subject,
+        message,
+        status: 'PENDING',
       },
     });
 
-    return NextResponse.json({ success: true, message: updatedMessage });
+    return NextResponse.json({
+      success: true,
+      message: newMessage,
+    });
   } catch (error) {
-    console.error('Error updating message:', error);
-    return NextResponse.json({ error: 'Failed to update message' }, { status: 500 });
+    console.error('Error creating message:', error);
+    return NextResponse.json(
+      { error: 'Failed to send message' },
+      { status: 500 }
+    );
   }
 }
