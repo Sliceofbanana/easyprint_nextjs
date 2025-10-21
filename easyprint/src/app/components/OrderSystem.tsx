@@ -32,7 +32,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const proofInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Use custom hooks
   const {
     files,
     uploadingFiles,
@@ -48,17 +47,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
   });
 
   const {
-    formData,
-    updateFormData,
-    currentStep,
-    nextStep,
-    prevStep,
     paymentProof,
     updatePaymentProof,
-    resetForm,
   } = useOrderForm();
 
-  // Preview modal state
   const [previewModal, setPreviewModal] = useState({
     isOpen: false,
     fileName: '',
@@ -66,7 +58,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     fileType: '',
   });
 
+  const [paymentUploading, setPaymentUploading] = useState(false);
+  const [paymentProgress, setPaymentProgress] = useState(0);
   const [serviceType, setServiceType] = useState<'DOCUMENT_PRINTING' | 'RUSH_ID' | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
   
   const [orderDetails, setOrderDetails] = useState({
     paperSize: "a4",
@@ -98,21 +93,15 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
   ];
 
   const cebuLocations = [
-    "University of San Carlos",
-    "Cebu Institute of Technology",
-    "University of Cebu",
+    "University of San Carlos - Main Campus",
+    "University of San Carlos - Talamban Campus",
+    "Cebu Institute of Technology - Main",
+    "University of Cebu - Main",
     "Cebu Normal University",
     "University of San Jose Recoletos",
-    "Southwestern University",
+    "Southwestern University - Urgello",
     "University of the Philippines Cebu",
   ];
-
-  const PRINT_PRICES: Record<string, Record<string, number>> = {
-    short: { black: 1.75, partial: 2.75, full: 8.5, borderless: 17 },
-    a4: { black: 2.0, partial: 3.0, full: 9.0, borderless: 18 },
-    long: { black: 2.5, partial: 4.0, full: 10.0, borderless: 20 },
-    a3: { black: 10.0, partial: 15.0, full: 20.0, borderless: 30 },
-  };
 
   const BINDING_PRICES: Record<string, (pages: number) => number> = {
     "book-soft": (pages) => (pages <= 150 ? 300 : pages <= 300 ? 350 : 400),
@@ -130,252 +119,413 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     { id: 'passport-rush', name: 'Passport Size Rush', copies: 4, price: 90, turnaround: '15 minutes' },
   ];
 
- const calculateTotal = useCallback(() => {
-  if (serviceType === 'RUSH_ID') {
-    const selectedPackage = RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage);
-    const packageCost = selectedPackage?.price || 0;
+  // ✅ PRICING TABLE: Price per page based on Paper Size and Print Mode
+  const PRINT_PRICES: Record<string, Record<string, number>> = {
+    short: { 
+      black: 1.75,      // Black & White
+      partial: 2.75,    // Partial Color
+      full: 8.5,        // Full Color
+      borderless: 17    // Borderless Print
+    },
+    a4: { 
+      black: 2.0,       // Black & White
+      partial: 3.0,     // Partial Color
+      full: 9.0,        // Full Color
+      borderless: 18    // Borderless Print
+    },
+    long: { 
+      black: 2.5,       // Black & White
+      partial: 4.0,     // Partial Color
+      full: 10.0,       // Full Color
+      borderless: 20    // Borderless Print
+    },
+    a3: { 
+      black: 10.0,      // Black & White
+      partial: 15.0,    // Partial Color
+      full: 20.0,       // Full Color
+      borderless: 30    // Borderless Print
+    },
+  };
+
+  // ✅ Calculate Total Function
+  const calculateTotal = useCallback(() => {
+    if (serviceType === 'RUSH_ID') {
+      const selectedPackage = RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage);
+      const packageCost = selectedPackage?.price || 0;
+      const deliveryCost = orderDetails.deliveryType === "campus" ? 10 : 0;
+      const total = Number((packageCost + deliveryCost).toFixed(2));
+      setOrderTotal(total);
+      return total;
+    }
+
+    // ✅ STEP 1: Get total pages from all uploaded files
+    const totalPages = files.reduce((sum, f) => sum + (f.pages || 1), 0);
+    
+    // ✅ STEP 2: Get number of copies user wants
+    const copies = Number(orderDetails.copies) || 1;
+    
+    // ✅ STEP 3: Get price per page based on selected paper size and print mode
+    // Example: If user selects "a4" and "black", pricePerPage = 2.00
+    const paperSize = orderDetails.paperSize || "a4";
+    const printMode = orderDetails.printMode || "black";
+    const pricePerPage = PRINT_PRICES[paperSize]?.[printMode] || 0;
+    
+    // ✅ STEP 4: Calculate printing cost
+    // Formula: (pricePerPage × totalPages) × copies
+    // Example: (2.00 × 5 pages) × 2 copies = 20.00
+    const printingCost = totalPages * copies * pricePerPage;
+
+    // ✅ STEP 5: Add binding cost if selected
+    let bindingCost = 0;
+    if (orderDetails.binding !== "none") {
+      const priceFn = BINDING_PRICES[orderDetails.binding];
+      if (priceFn) {
+        bindingCost = priceFn(totalPages) * copies;
+      }
+    }
+
+    // ✅ STEP 6: Add delivery cost if campus delivery is selected
     const deliveryCost = orderDetails.deliveryType === "campus" ? 10 : 0;
-    const total = Number((packageCost + deliveryCost).toFixed(2));
+    
+    // ✅ STEP 7: Calculate grand total
+    const total = Number((printingCost + bindingCost + deliveryCost).toFixed(2));
+    
+    console.log('📊 Price Breakdown:', {
+      totalPages,
+      copies,
+      paperSize,
+      printMode,
+      pricePerPage,
+      printingCost,
+      bindingCost,
+      deliveryCost,
+      total
+    });
+    
     setOrderTotal(total);
     return total;
-  }
+  }, [files, orderDetails, serviceType]);
 
-  // Document Printing calculation
-  const totalPagesInFiles = files.reduce((sum, f) => sum + (f.pages || 1), 0);
-  const copies = Number(orderDetails.copies) || 1;
-  const sizeKey = orderDetails.paperSize || "a4";
-  const modeKey = orderDetails.printMode || "black";
-  const pricePerPage = PRINT_PRICES[sizeKey]?.[modeKey] || 0;
-  const printingCost = totalPagesInFiles * copies * pricePerPage;
+  useEffect(() => {
+    calculateTotal();
+  }, [calculateTotal]);
 
-  let bindingCost = 0;
-  if (orderDetails.binding !== "none") {
-    const priceFn = BINDING_PRICES[orderDetails.binding];
-    if (priceFn) {
-      bindingCost = priceFn(totalPagesInFiles) * copies;
-    }
-  }
-
-  // ✅ FIXED: Add delivery cost for campus delivery
-  const deliveryCost = orderDetails.deliveryType === "campus" ? 10 : 0;
-  
-  // ✅ Include delivery cost in total
-  const total = Number((printingCost + bindingCost + deliveryCost).toFixed(2));
-  
-const handleNextStep = () => {
-  // ✅ Step 1 Validation: Files and Service Type
-  if (currentStep === 1) {
-    if (files.length === 0) {
-      toast({
-        title: 'No Files',
-        description: 'Please upload at least one file.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    if (!serviceType) {
-      toast({
-        title: 'Service Type Required',
-        description: 'Please select Document Printing or Rush ID.',
-        variant: 'destructive',
-      });
-      return;
-    }
-  }
-
-  // ✅ Step 2 Validation: Rush ID package or Document options
-  if (currentStep === 2) {
-    if (serviceType === 'RUSH_ID' && !orderDetails.rushPackage) {
-      toast({
-        title: 'Package Required',
-        description: 'Please select a Rush ID package.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    if (serviceType === 'DOCUMENT_PRINTING') {
-      if (!orderDetails.paperSize || !orderDetails.printMode || orderDetails.copies < 1) {
+  // ✅ Handle Next Step with Validation
+  const handleNextStep = () => {
+    if (currentStep === 1) {
+      if (files.length === 0) {
         toast({
-          title: 'Incomplete Options',
-          description: 'Please configure all print options.',
+          title: 'No Files',
+          description: 'Please upload at least one file.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (!serviceType) {
+        toast({
+          title: 'Service Type Required',
+          description: 'Please select Document Printing or Rush ID.',
           variant: 'destructive',
         });
         return;
       }
     }
-  }
 
-  // ✅ Step 3 Validation: Delivery location for campus delivery
-  if (currentStep === 3) {
-    if (orderDetails.deliveryType === 'campus' && !orderDetails.deliveryLocation) {
-      toast({
-        title: 'Location Required',
-        description: 'Please select a campus location for delivery.',
-        variant: 'destructive',
-      });
+    if (currentStep === 2) {
+      if (serviceType === 'RUSH_ID' && !orderDetails.rushPackage) {
+        toast({
+          title: 'Package Required',
+          description: 'Please select a Rush ID package.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (serviceType === 'DOCUMENT_PRINTING') {
+        if (!orderDetails.paperSize || !orderDetails.printMode || orderDetails.copies < 1) {
+          toast({
+            title: 'Incomplete Options',
+            description: 'Please configure all print options.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+    }
+
+    if (currentStep === 3) {
+      if (orderDetails.deliveryType === 'campus' && !orderDetails.deliveryLocation) {
+        toast({
+          title: 'Location Required',
+          description: 'Please select a campus location for delivery.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    if (currentStep === 4) {
+      if (!orderDetails.contactName.trim()) {
+        toast({
+          title: 'Name Required',
+          description: 'Please enter your full name.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (!orderDetails.contactPhone.trim()) {
+        toast({
+          title: 'Phone Required',
+          description: 'Please enter your phone number.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      const phoneRegex = /^09\d{9}$/;
+      if (!phoneRegex.test(orderDetails.contactPhone.replace(/\s+/g, ''))) {
+        toast({
+          title: 'Invalid Phone',
+          description: 'Please enter a valid Philippine mobile number (e.g., 09XX XXX XXXX).',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (!orderDetails.contactEmail.trim()) {
+        toast({
+          title: 'Email Required',
+          description: 'Please enter your email address.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(orderDetails.contactEmail)) {
+        toast({
+          title: 'Invalid Email',
+          description: 'Please enter a valid email address.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    if (currentStep === 6) {
+      if (!paymentProof.ref.trim()) {
+        toast({
+          title: 'Reference Number Required',
+          description: 'Please enter the GCash reference number.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (!paymentProof.file || !paymentProof.url) {
+        toast({
+          title: 'Payment Screenshot Required',
+          description: 'Please upload your payment screenshot.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      handleSubmitOrder();
       return;
     }
-  }
 
-  // ✅ Step 4 Validation: Contact information
-  if (currentStep === 4) {
-    if (!orderDetails.contactName.trim()) {
-      toast({
-        title: 'Name Required',
-        description: 'Please enter your full name.',
-        variant: 'destructive',
+    setCurrentStep((prev) => Math.min(prev + 1, steps.length));
+  };
+
+  // ✅ Submit Order Function
+  const handleSubmitOrder = async () => {
+    try {
+      const basePayload = {
+        customerName: orderDetails.contactName,
+        customerEmail: orderDetails.contactEmail,
+        customerPhone: orderDetails.contactPhone,
+        serviceType: serviceType || 'DOCUMENT_PRINTING',
+        totalPrice: orderTotal,
+        notes: `Service: ${serviceType}${serviceType === 'RUSH_ID' ? `\nPackage: ${orderDetails.rushPackage}\n${RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.name}` : ''}\nDelivery: ${orderDetails.deliveryType}${orderDetails.deliveryType === 'campus' ? `\nLocation: ${orderDetails.deliveryLocation}` : ''}\n${orderDetails.specialInstructions || ''}`,
+        paymentProofUrl: paymentProof.url,
+        paymentProof: {
+          ref: paymentProof.ref,
+          url: paymentProof.url,
+        },
+      };
+
+      let orderPayload;
+
+      if (serviceType === 'RUSH_ID') {
+        const selectedPackage = RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage);
+        orderPayload = {
+          ...basePayload,
+          paperSize: 'A4',
+          colorType: 'FULL_COLOR',
+          copies: selectedPackage?.copies || 4,
+          pages: 1,
+          bindingType: 'NONE',
+          fileUrl: files[0]?.url || '',
+          fileName: files[0]?.name || 'id-photo.jpg',
+          pricePerPage: 0,
+        };
+      } else {
+        orderPayload = {
+          ...basePayload,
+          paperSize: orderDetails.paperSize.toUpperCase(),
+          colorType: orderDetails.printMode === 'black' ? 'BLACK_AND_WHITE' : 
+                     orderDetails.printMode === 'partial' ? 'PARTIAL_COLOR' :
+                     orderDetails.printMode === 'full' ? 'FULL_COLOR' : 'BORDERLESS',
+          copies: orderDetails.copies,
+          pages: files.reduce((sum, f) => sum + (f.pages || 1), 0),
+          bindingType: orderDetails.binding.toUpperCase().replace('-', '_'),
+          fileUrl: files[0]?.url || '',
+          fileName: files[0]?.name || 'document.pdf',
+          pricePerPage: PRINT_PRICES[orderDetails.paperSize]?.[orderDetails.printMode] || 0,
+        };
+      }
+
+      console.log('📤 Submitting order:', orderPayload);
+
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload),
       });
-      return;
-    }
-    
-    if (!orderDetails.contactPhone.trim()) {
+
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { error: responseText || 'Unknown error' };
+        }
+        
+        toast({
+          title: 'Order Failed',
+          description: errorData.error || errorData.details || 'Failed to create order. Please try again.',
+          variant: 'destructive',
+        });
+        
+        throw new Error(errorData.error || 'Failed to create order');
+      }
+
+      const data = JSON.parse(responseText);
+      setOrderId(data.order?.orderNumber || '1001');
+
       toast({
-        title: 'Phone Required',
-        description: 'Please enter your phone number.',
-        variant: 'destructive',
+        title: 'Order Placed!',
+        description: `Your ${serviceType === 'RUSH_ID' ? 'Rush ID' : 'printing'} order has been submitted successfully.`,
       });
-      return;
+
+      setCurrentStep(7);
+    } catch (error) {
+      console.error('Order submission error:', error);
+      
+      if (!(error instanceof Error && error.message.includes('Failed to create order'))) {
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to place order. Please try again.',
+          variant: 'destructive',
+        });
+      }
     }
-    
-    // Basic phone validation
-    const phoneRegex = /^09\d{9}$/;
-    if (!phoneRegex.test(orderDetails.contactPhone.replace(/\s+/g, ''))) {
-      toast({
-        title: 'Invalid Phone',
-        description: 'Please enter a valid Philippine mobile number (e.g., 09XX XXX XXXX).',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    if (!orderDetails.contactEmail.trim()) {
-      toast({
-        title: 'Email Required',
-        description: 'Please enter your email address.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(orderDetails.contactEmail)) {
-      toast({
-        title: 'Invalid Email',
-        description: 'Please enter a valid email address.',
-        variant: 'destructive',
-      });
-      return;
-    }
-  }
-
-  // ✅ Step 6 Validation: Payment proof
-  if (currentStep === 6) {
-    if (!paymentProof.ref.trim()) {
-      toast({
-        title: 'Reference Number Required',
-        description: 'Please enter the GCash reference number.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    if (!paymentProof.file || !paymentProof.url) {
-      toast({
-        title: 'Payment Screenshot Required',
-        description: 'Please upload your payment screenshot.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // ✅ Submit order (Step 6 → 7)
-    handleSubmitOrder();
-    return;
-  }
-
-  // ✅ Proceed to next step
-  setCurrentStep((prev) => Math.min(prev + 1, steps.length));
-};
-
-const handleSubmitOrder = async () => {
-  try {
-    const orderPayload = {
-      customerName: orderDetails.contactName,
-      customerEmail: orderDetails.contactEmail,
-      customerPhone: orderDetails.contactPhone,
-      serviceType: serviceType || 'DOCUMENT_PRINTING',
-      paperSize: orderDetails.paperSize.toUpperCase(),
-      colorType: orderDetails.printMode === 'black' ? 'BLACK_AND_WHITE' : 'COLOR',
-      copies: orderDetails.copies,
-      pages: files.reduce((sum, f) => sum + (f.pages || 1), 0),
-      bindingType: orderDetails.binding.toUpperCase().replace('-', '_'),
-      fileUrl: files[0]?.url || '',
-      fileName: files[0]?.name || 'document.pdf',
-      pricePerPage: serviceType === 'RUSH_ID' ? 0 : PRINT_PRICES[orderDetails.paperSize]?.[orderDetails.printMode] || 0,
-      totalPrice: orderTotal,
-      notes: `Service: ${serviceType}${serviceType === 'RUSH_ID' ? `\nPackage: ${orderDetails.rushPackage}` : ''}\nDelivery: ${orderDetails.deliveryType}\n${orderDetails.specialInstructions || ''}`,
-      adminNotes: `Payment Ref: ${paymentProof.ref}\nScreenshot: ${paymentProof.url}`,
-      paymentProofUrl: paymentProof.url,
-      status: 'PENDING',
-    };
-
-    const response = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderPayload),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create order');
-    }
-
-    const data = await response.json();
-    setOrderId(data.order.orderNumber);
-
-    toast({
-      title: 'Order Placed!',
-      description: 'Your payment is being verified.',
-    });
-
-    // Move to confirmation step
-    setCurrentStep(7);
-  } catch (error) {
-    console.error('Order submission error:', error);
-    toast({
-      title: 'Error',
-      description: error instanceof Error ? error.message : 'Failed to place order.',
-      variant: 'destructive',
-    });
-  }
-};
-
-  setOrderTotal(total);
-  return total;
-}, [files, orderDetails, serviceType]);
-
-  useEffect(() => {
-    calculateTotal();
-  }, [calculateTotal]);
+  };
 
   const handleFileUpload = async (fileList: FileList | null) => {
     if (!fileList) return;
     await uploadMultipleFiles(fileList);
   };
 
+  // ✅ Handle Payment Screenshot Upload (Separate from documents)
   const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const result = await uploadFile(file, 'payments');
-    if (result) {
-      updatePaymentProof({
-        file,
-        url: result.url,
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please upload an image file (JPG, PNG, etc.)',
+        variant: 'destructive',
       });
+      return;
+    }
+
+    // Validate file size (5MB limit for payment proof)
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast({
+        title: 'File Too Large',
+        description: 'Payment screenshot must be less than 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPaymentUploading(true);
+    setPaymentProgress(0);
+
+    try {
+      // Upload to API with progress tracking
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'payment');
+
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setPaymentProgress(percentComplete);
+        }
+      });
+
+      xhr.addEventListener('load', async () => {
+        if (xhr.status === 200) {
+          const result = JSON.parse(xhr.responseText);
+          
+          updatePaymentProof({
+            file,
+            url: result.url,
+          });
+
+          toast({
+            title: 'Upload Successful',
+            description: 'Payment screenshot uploaded successfully',
+          });
+        } else {
+          throw new Error('Upload failed');
+        }
+        setPaymentUploading(false);
+      });
+
+      xhr.addEventListener('error', () => {
+        toast({
+          title: 'Upload Failed',
+          description: 'Failed to upload payment screenshot',
+          variant: 'destructive',
+        });
+        setPaymentUploading(false);
+      });
+
+      xhr.open('POST', '/api/upload');
+      xhr.send(formData);
+
+    } catch (error) {
+      console.error('Payment proof upload error:', error);
+      toast({
+        title: 'Upload Failed',
+        description: error instanceof Error ? error.message : 'Failed to upload payment screenshot',
+        variant: 'destructive',
+      });
+      setPaymentUploading(false);
     }
   };
 
@@ -435,53 +585,82 @@ const handleSubmitOrder = async () => {
         </p>
       </div>
 
+      {/* ✅ UPDATED: Document Upload Progress - Matches Payment Screenshot Style */}
       {uploadingFiles.length > 0 && (
         <div className="mt-6 space-y-3">
           <h3 className="font-semibold text-sm text-gray-700">
-            Uploading... ({uploadingFiles.length})
+            Uploading Documents ({uploadingFiles.length})
           </h3>
           {uploadingFiles.map((file) => (
             <motion.div
               key={file.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-gray-200 rounded-lg p-4"
+              className="p-6 border-2 border-blue-200 bg-blue-50 rounded-lg"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <FileText className="w-5 h-5 text-blue-900 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-gray-900 truncate">{file.name}</p>
-                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB</p>
-                  </div>
+              {/* File Info Header */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex-shrink-0">
+                  {file.status === 'uploading' && (
+                    <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                  )}
+                  {file.status === 'success' && (
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  )}
                 </div>
-                {file.status === 'uploading' && (
-                  <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
-                )}
-                {file.status === 'success' && (
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {(file.size / 1024).toFixed(2)} KB • {file.type.split('/')[1]?.toUpperCase()}
+                  </p>
+                </div>
               </div>
 
-              <div className="mt-2">
-                <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                  <span>{file.status === 'success' ? 'Complete' : 'Uploading...'}</span>
-                  <span>{file.progress}%</span>
+              {/* Progress Bar */}
+              {file.status === 'uploading' && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-gray-600">
+                    <span>Uploading document...</span>
+                    <span className="font-bold text-blue-900">{file.progress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <motion.div
+                      className="bg-blue-600 h-full rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${file.progress}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                  <motion.div
-                    className="bg-blue-600 h-full rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${file.progress}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
+              )}
+
+              {/* Success Message */}
+              {file.status === 'success' && (
+                <div className="p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-700" />
+                  <span className="text-xs text-green-800 font-medium">
+                    Upload complete • {file.pages} page(s) detected
+                  </span>
                 </div>
-              </div>
+              )}
+
+              {/* Error Message */}
+              {file.status === 'error' && (
+                <div className="p-2 bg-red-100 border border-red-300 rounded flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-700" />
+                  <span className="text-xs text-red-800 font-medium">
+                    Upload failed
+                  </span>
+                </div>
+              )}
             </motion.div>
           ))}
         </div>
       )}
 
+      {/* Uploaded Files List */}
       {files.length > 0 && (
         <div className="mt-6 space-y-3">
           <h3 className="font-semibold text-sm text-gray-700">
@@ -492,50 +671,73 @@ const handleSubmitOrder = async () => {
               key={file.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+              className="border-2 border-green-200 bg-green-50 rounded-lg p-4"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="flex-shrink-0">
-                    {file.type.startsWith('image/') ? (
-                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200">
-                        <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-blue-900" />
-                      </div>
-                    )}
+              <div className="flex items-start gap-3">
+                {/* File Preview/Icon */}
+                <div className="flex-shrink-0">
+                  {file.type.startsWith('image/') ? (
+                    <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-green-300">
+                      <img 
+                        src={file.url} 
+                        alt={file.name} 
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center border-2 border-blue-300">
+                      <FileText className="w-10 h-10 text-blue-900" />
+                    </div>
+                  )}
+                </div>
+
+                {/* File Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {(file.size / 1024).toFixed(2)} KB • {file.pages} page(s)
+                      </p>
+                    </div>
+                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-gray-900 truncate">{file.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {(file.size / 1024).toFixed(2)} KB • {file.pages} page(s)
-                    </p>
+
+                  {/* Action Buttons */}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => handlePreviewFile(file)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                    >
+                      <Eye className="w-3 h-3" />
+                      Preview
+                    </button>
+                    <button
+                      onClick={() => removeFile(file.id)}
+                      className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Remove
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handlePreviewFile(file)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Preview file"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => removeFile(file.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Remove file"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+              </div>
+
+              {/* Success Badge */}
+              <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-700" />
+                <span className="text-xs text-green-800 font-medium">
+                  Document uploaded successfully
+                </span>
               </div>
             </motion.div>
           ))}
         </div>
       )}
 
+      {/* Service Type Selection */}
       {files.length > 0 && (
         <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
           <div className="flex items-center gap-2 mb-4">
@@ -590,7 +792,6 @@ const handleSubmitOrder = async () => {
     </div>
   );
 
-  // ✅ ADD THIS FUNCTION - renderStepContent
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -630,26 +831,22 @@ const handleSubmitOrder = async () => {
                         <strong>{pkg.copies} copies</strong>
                       </p>
                       <p className="text-xs text-gray-500">
-                        ⏱️ Ready in: <strong>{pkg.turnaround}</strong>
+                        ⚡ Ready in {pkg.turnaround}
                       </p>
                     </button>
                   ))}
                 </div>
 
                 {orderDetails.rushPackage && (
-                  <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm text-gray-600">Selected Package</p>
-                        <p className="text-xl font-bold text-green-900">
-                          {RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.name}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">Total Price</p>
-                        <p className="text-3xl font-bold text-green-900">₱{orderTotal.toFixed(2)}</p>
-                      </div>
+                  <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-5 h-5 text-green-700" />
+                      <h3 className="font-semibold text-green-900">Package Selected</h3>
                     </div>
+                    <p className="text-sm text-gray-700">
+                      {RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.name} - 
+                      ₱{RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.price}
+                    </p>
                   </div>
                 )}
               </div>
@@ -664,10 +861,10 @@ const handleSubmitOrder = async () => {
                     onChange={(e) => setOrderDetails({ ...orderDetails, paperSize: e.target.value })}
                     className="w-full p-3 border rounded-lg"
                   >
-                    <option value="short">Letter (8.5" × 11") - from ₱{PRINT_PRICES.short.black}/page</option>
-                    <option value="a4">A4 - from ₱{PRINT_PRICES.a4.black}/page</option>
-                    <option value="long">Legal (8.5" × 13") - from ₱{PRINT_PRICES.long.black}/page</option>
-                    <option value="a3">A3 - from ₱{PRINT_PRICES.a3.black}/page</option>
+                    <option value="short">Letter (8.5" × 11")</option>
+                    <option value="a4">A4</option>
+                    <option value="long">Legal (8.5" × 13")</option>
+                    <option value="a3">A3</option>
                   </select>
                 </div>
 
@@ -762,7 +959,6 @@ const handleSubmitOrder = async () => {
                         </span>
                       </div>
                     )}
-                    {/* ✅ REMOVED: Delivery cost display from Step 2 */}
                     <div className="border-t-2 border-blue-300 pt-3 mt-3">
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-bold text-gray-900">Subtotal:</span>
@@ -875,91 +1071,89 @@ const handleSubmitOrder = async () => {
           </div>
         );
 
-        case 5:
-          return (
-            <div>
-              <h2 className="text-xl font-bold mb-6">Review Order Summary</h2>
-              <div className="bg-gray-50 p-6 rounded-lg space-y-4">
-                <h3 className="font-semibold text-lg border-b pb-2">Order Details</h3>
-                
-                <div className="space-y-3 text-sm">
+      case 5:
+        return (
+          <div>
+            <h2 className="text-xl font-bold mb-6">Review Order Summary</h2>
+            <div className="bg-gray-50 p-6 rounded-lg space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Order Details</h3>
+              
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Service Type:</span>
+                  <span className="font-medium">
+                    {serviceType === 'RUSH_ID' ? 'Rush ID Photos' : 'Document Printing'}
+                  </span>
+                </div>
+
+                {serviceType === 'RUSH_ID' ? (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Service Type:</span>
+                    <span className="text-gray-600">Package:</span>
                     <span className="font-medium">
-                      {serviceType === 'RUSH_ID' ? 'Rush ID Photos' : 'Document Printing'}
+                      {RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.name}
                     </span>
                   </div>
-
-                  {serviceType === 'RUSH_ID' ? (
+                ) : (
+                  <>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Package:</span>
-                      <span className="font-medium">
-                        {RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.name}
-                      </span>
+                      <span className="text-gray-600">Files:</span>
+                      <span className="font-medium">{files.length} file(s)</span>
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Files:</span>
-                        <span className="font-medium">{files.length} file(s)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Pages:</span>
-                        <span className="font-medium">{files.reduce((sum, f) => sum + (f.pages || 1), 0)} page(s)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Paper Size:</span>
-                        <span className="font-medium capitalize">{orderDetails.paperSize}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Print Mode:</span>
-                        <span className="font-medium capitalize">{orderDetails.printMode}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Copies:</span>
-                        <span className="font-medium">{orderDetails.copies}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Binding:</span>
-                        <span className="font-medium capitalize">{orderDetails.binding.replace('-', ' ')}</span>
-                      </div>
-                    </>
-                  )}
-
-                  {/* ✅ DELIVERY INFO - Only shown in review */}
-                  <div className="border-t border-gray-300 pt-3 mt-3">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Delivery Type:</span>
-                      <span className="font-medium capitalize">{orderDetails.deliveryType}</span>
+                      <span className="text-gray-600">Total Pages:</span>
+                      <span className="font-medium">{files.reduce((sum, f) => sum + (f.pages || 1), 0)} page(s)</span>
                     </div>
-                    {orderDetails.deliveryType === 'campus' && orderDetails.deliveryLocation && (
-                      <div className="flex justify-between mt-2">
-                        <span className="text-gray-600">Location:</span>
-                        <span className="font-medium text-sm">{orderDetails.deliveryLocation}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Paper Size:</span>
+                      <span className="font-medium capitalize">{orderDetails.paperSize}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Print Mode:</span>
+                      <span className="font-medium capitalize">{orderDetails.printMode}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Copies:</span>
+                      <span className="font-medium">{orderDetails.copies}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Binding:</span>
+                      <span className="font-medium capitalize">{orderDetails.binding.replace('-', ' ')}</span>
+                    </div>
+                  </>
+                )}
+
+                <div className="border-t border-gray-300 pt-3 mt-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Delivery Type:</span>
+                    <span className="font-medium capitalize">{orderDetails.deliveryType}</span>
+                  </div>
+                  {orderDetails.deliveryType === 'campus' && orderDetails.deliveryLocation && (
                     <div className="flex justify-between mt-2">
-                      <span className="text-gray-600">Delivery Fee:</span>
-                      <span className="font-medium">
-                        {orderDetails.deliveryType === 'campus' ? '₱10.00' : 'FREE'}
-                      </span>
+                      <span className="text-gray-600">Location:</span>
+                      <span className="font-medium text-sm">{orderDetails.deliveryLocation}</span>
                     </div>
+                  )}
+                  <div className="flex justify-between mt-2">
+                    <span className="text-gray-600">Delivery Fee:</span>
+                    <span className="font-medium">
+                      {orderDetails.deliveryType === 'campus' ? '₱10.00' : 'FREE'}
+                    </span>
                   </div>
+                </div>
 
-                  {/* ✅ GRAND TOTAL - With delivery fee included */}
-                  <div className="border-t-2 border-blue-900 pt-3 mt-3">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-lg text-gray-900">Grand Total:</span>
-                      <span className="font-bold text-2xl text-blue-900">₱{orderTotal.toFixed(2)}</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 text-right">
-                      Including {orderDetails.deliveryType === 'campus' ? '₱10 delivery fee' : 'free pickup'}
-                    </p>
+                <div className="border-t-2 border-blue-900 pt-3 mt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-lg text-gray-900">Grand Total:</span>
+                    <span className="font-bold text-2xl text-blue-900">₱{orderTotal.toFixed(2)}</span>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1 text-right">
+                    Including {orderDetails.deliveryType === 'campus' ? '₱10 delivery fee' : 'free pickup'}
+                  </p>
                 </div>
               </div>
             </div>
-          );
+          </div>
+        );
 
       case 6:
         return (
@@ -1007,7 +1201,7 @@ const handleSubmitOrder = async () => {
                       value={paymentProof.ref}
                       onChange={(e) => updatePaymentProof({ ref: e.target.value })}
                       className="w-full p-3 border rounded-lg"
-                      placeholder="Enter reference number"
+                      placeholder="Enter reference number (e.g., 1234567890)"
                       required
                     />
                   </div>
@@ -1022,25 +1216,132 @@ const handleSubmitOrder = async () => {
                       onChange={handleProofUpload}
                       accept="image/*"
                       className="hidden"
+                      disabled={paymentUploading}
                     />
-                    <button
-                      onClick={() => proofInputRef.current?.click()}
-                      className="w-full p-4 border-2 border-dashed rounded-lg hover:border-blue-900 hover:bg-blue-50 transition-colors"
-                    >
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                      <p className="text-sm text-gray-600">
-                        {paymentProof.file ? paymentProof.file.name : 'Click to upload screenshot'}
-                      </p>
-                    </button>
+                    
+                    {/* Upload Button */}
+                    {!paymentProof.file && !paymentUploading && (
+                      <button
+                        onClick={() => proofInputRef.current?.click()}
+                        className="w-full p-6 border-2 border-dashed rounded-lg hover:border-blue-900 hover:bg-blue-50 transition-colors"
+                      >
+                        <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-600 font-medium">
+                          Click to upload payment screenshot
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          JPG, PNG (Max 5MB)
+                        </p>
+                      </button>
+                    )}
+
+                    {/* ✅ Upload Progress Bar */}
+                    {paymentUploading && (
+                      <div className="p-6 border-2 border-blue-200 bg-blue-50 rounded-lg">
+                        <div className="flex items-center gap-3 mb-3">
+                          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              Uploading payment screenshot...
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Please wait while we upload your file
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs text-gray-600">
+                            <span>Progress</span>
+                            <span className="font-bold text-blue-900">{paymentProgress}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <motion.div
+                              className="bg-blue-600 h-full rounded-full"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${paymentProgress}%` }}
+                              transition={{ duration: 0.3 }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ✅ Upload Success - Show Preview */}
+                    {paymentProof.file && paymentProof.url && !paymentUploading && (
+                      <div className="border-2 border-green-200 bg-green-50 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          {/* Preview Image */}
+                          <div className="flex-shrink-0">
+                            <img
+                              src={paymentProof.url}
+                              alt="Payment screenshot"
+                              className="w-20 h-20 object-cover rounded-lg border-2 border-green-300"
+                            />
+                          </div>
+                          
+                          {/* File Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-gray-900 truncate">
+                                  {paymentProof.file.name}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  {(paymentProof.file.size / 1024).toFixed(2)} KB
+                                </p>
+                              </div>
+                              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                            </div>
+                            
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={() => window.open(paymentProof.url, '_blank')}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View Full Size
+                              </button>
+                              <button
+                                onClick={() => {
+                                  updatePaymentProof({ file: null, url: '' });
+                                  setPaymentProgress(0);
+                                }}
+                                className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-700" />
+                          <span className="text-xs text-green-800 font-medium">
+                            Payment screenshot uploaded successfully
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {paymentProof.file && (
-                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <span className="text-sm text-green-700">Screenshot uploaded successfully</span>
+                {/* Info Box */}
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-800">
+                      <p className="font-semibold mb-1">Important:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>Make sure the screenshot clearly shows the payment amount and reference number</li>
+                        <li>The reference number must match the one you entered above</li>
+                        <li>Your order will be verified before processing</li>
+                      </ul>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
@@ -1074,7 +1375,6 @@ const handleSubmitOrder = async () => {
               <button
                 onClick={() => {
                   setCurrentStep(1);
-                  setFiles([]);
                   setServiceType(null);
                   updatePaymentProof({ file: null, ref: "", url: "" });
                 }}
@@ -1150,7 +1450,7 @@ const handleSubmitOrder = async () => {
           {currentStep < 7 && (
             <div className="flex justify-between">
               <button
-                onClick={prevStep}
+                onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 1))}
                 disabled={currentStep === 1}
                 className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
                   currentStep === 1
@@ -1161,10 +1461,18 @@ const handleSubmitOrder = async () => {
                 Previous
               </button>
               <button
-                onClick={nextStep}
-                className="px-6 py-3 bg-blue-900 text-white rounded-lg font-semibold hover:bg-blue-800 transition-colors"
+                onClick={handleNextStep}
+                disabled={isUploading || paymentUploading}
+                className="px-6 py-3 bg-blue-900 text-white rounded-lg font-semibold hover:bg-blue-800 transition-colors disabled:opacity-50"
               >
-                {currentStep === 6 ? 'Submit Payment & Place Order' : 'Next'}
+                {isUploading || paymentUploading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Uploading...
+                  </span>
+                ) : (
+                  currentStep === 6 ? 'Submit Payment & Place Order' : 'Next'
+                )}
               </button>
             </div>
           )}

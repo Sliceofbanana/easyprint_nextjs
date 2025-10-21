@@ -49,23 +49,15 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // ✅ Initial sign in
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.email = user.email;
         token.name = user.name;
       }
-
-      // ✅ Handle session updates
-      if (trigger === "update" && session) {
-        token = { ...token, ...session };
-      }
-
       return token;
     },
     async session({ session, token }) {
-      // ✅ Add token data to session
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;

@@ -16,6 +16,7 @@ import {
   Receipt,
   Settings,
   BarChart3,
+  ImageIcon,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
 import { AlertTriangle, Bell } from 'lucide-react';
@@ -63,6 +64,8 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'settings'>('orders');
   const [showLowStockModal, setShowLowStockModal] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, right: 'auto' as 'auto' | number });
 
   const statusOptions = [
     { value: 'all', label: 'All Orders' },
@@ -80,7 +83,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
       try {
         const response = await fetch('/api/orders');
         if (!response.ok) throw new Error('Failed to fetch orders');
-        
         const data = await response.json();
         setOrders(data || []);
       } catch (error) {
@@ -96,7 +98,87 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
     };
 
     fetchOrders();
+
+    const interval = setInterval(() => {
+      fetch('/api/orders')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) setOrders(data);
+        })
+        .catch(console.error);
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [toast]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdownId && !(event.target as Element).closest('.status-dropdown')) {
+        setOpenDropdownId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdownId]);
+
+  // ✅ Calculate dropdown position when opened
+  useEffect(() => {
+    if (openDropdownId) {
+      const calculatePosition = () => {
+        const buttonElement = document.querySelector(`[data-order-id="${openDropdownId}"]`);
+        if (!buttonElement) return;
+
+        const rect = buttonElement.getBoundingClientRect();
+        const dropdownWidth = 224; // 56 * 4 (w-56 in pixels)
+        const dropdownMaxHeight = 300;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const padding = 8; // Reduced padding for closer positioning
+        const gap = 4; // Smaller gap between button and dropdown
+
+        let top = rect.bottom + gap; // Position just below the button
+        let left: number | 'auto' = 'auto';
+        let right: number | 'auto' = 'auto';
+
+        // ✅ Check if there's space below
+        const spaceBelow = viewportHeight - rect.bottom - gap;
+        const spaceAbove = rect.top - gap;
+
+        if (spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow) {
+          // Open upwards if not enough space below
+          top = rect.top - Math.min(dropdownMaxHeight, spaceAbove) - gap;
+        }
+
+        // ✅ Horizontal positioning - align right edge with button right edge
+        const leftPosition = rect.right - dropdownWidth;
+        
+        if (leftPosition >= padding) {
+          // Align dropdown right edge with button right edge
+          left = leftPosition;
+        } else if (rect.left + dropdownWidth <= viewportWidth - padding) {
+          // Align dropdown left edge with button left edge
+          left = rect.left;
+        } else {
+          // Center align if neither works
+          left = Math.max(padding, (viewportWidth - dropdownWidth) / 2);
+        }
+
+        setDropdownPosition({ top, left, right });
+      };
+
+      calculatePosition();
+      
+      // Recalculate on scroll or resize
+      window.addEventListener('scroll', calculatePosition, true);
+      window.addEventListener('resize', calculatePosition);
+      
+      return () => {
+        window.removeEventListener('scroll', calculatePosition, true);
+        window.removeEventListener('resize', calculatePosition);
+      };
+    }
+  }, [openDropdownId]);
 
   useEffect(() => {
     let filtered = orders;
@@ -132,6 +214,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
           )
         );
         toast({ title: 'Status Updated', description: `Order status changed to ${newStatus}` });
+        setOpenDropdownId(null);
       }
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
@@ -154,7 +237,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
         description: 'Starting download...',
       });
 
-      // ✅ Use proxy API for secure download
       const encodedUrl = encodeURIComponent(order.fileUrl);
       const response = await fetch(`/api/files/proxy?url=${encodedUrl}`);
       
@@ -246,6 +328,18 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
     printWindow.document.close();
   };
 
+  const extractPaymentInfo = (adminNotes?: string) => {
+    if (!adminNotes) return null;
+    
+    const refMatch = adminNotes.match(/Payment Ref:\s*(.+?)(?:\n|$)/);
+    const screenshotMatch = adminNotes.match(/Screenshot:\s*(.+?)(?:\n|$)/);
+    
+    return {
+      reference: refMatch ? refMatch[1].trim() : 'N/A',
+      screenshotUrl: screenshotMatch ? screenshotMatch[1].trim() : null,
+    };
+  };
+
   const getStatusLabel = (status: string) =>
     statusOptions.find((s) => s.value === status)?.label || 'Unknown';
 
@@ -270,7 +364,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
     ).length,
   };
 
-  // ✅ Render tab content
   const renderTabContent = () => {
     switch (activeTab) {
       case 'orders':
@@ -344,12 +437,14 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                     <p>No orders found.</p>
                   </div>
                 ) : (
-                  filteredOrders.map((order) => (
-                    <motion.div
+                  filteredOrders.map((order, index) => (
+                    <div
                       key={order.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="p-6 hover:bg-gray-50"
+                      className="p-6 hover:bg-gray-50 relative"
+                      style={{ 
+                        position: 'relative',
+                        zIndex: filteredOrders.length - index
+                      }}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-4">
                         <div className="flex-1 min-w-[200px]">
@@ -362,25 +457,14 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                         <div className="flex items-center gap-3">
                           <p className="font-semibold">₱{order.totalPrice.toFixed(2)}</p>
                           
-                          <div className="relative group">
+                          {/* ✅ Status Dropdown with data-order-id */}
+                          <div className="relative status-dropdown" data-order-id={order.id}>
                             <button
-                              className={`px-3 py-1.5 text-sm font-medium rounded-lg ${getStatusColor(order.status)} flex items-center gap-2`}
+                              onClick={() => setOpenDropdownId(openDropdownId === order.id ? null : order.id)}
+                              className={`px-3 py-1.5 text-sm font-medium rounded-lg ${getStatusColor(order.status)} flex items-center gap-2 hover:opacity-80 transition-opacity`}
                             >
                               {getStatusLabel(order.status)} <ChevronDown size={14} />
                             </button>
-                            <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 hidden group-hover:block z-10">
-                              {statusOptions
-                                .filter((s) => s.value !== 'all')
-                                .map((s) => (
-                                  <button
-                                    key={s.value}
-                                    onClick={() => updateOrderStatus(order.id, s.value)}
-                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                                  >
-                                    {s.label}
-                                  </button>
-                                ))}
-                            </div>
                           </div>
 
                           <button
@@ -405,7 +489,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                           </button>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   ))
                 )}
               </div>
@@ -450,14 +534,12 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
   return (
     <div className="bg-gray-50 min-h-full py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Staff Dashboard</h1>
-          <p className="text-gray-600">Welcome back, {user.name || user.email}!</p>
-        </div>
-        
-          {/* ✅ Low Stock Alert Button - Right Side */}
+        <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Staff Dashboard</h1>
+            <p className="text-gray-600">Welcome back, {user.name || user.email}!</p>
+          </div>
+          
           <button
             onClick={() => setShowLowStockModal(true)}
             className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-lg hover:shadow-xl"
@@ -468,8 +550,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
           </button>
         </div>
         
-        {/* ✅ Tab Navigation */}
-        <div className="bg-white rounded-xl shadow-lg border mb-8 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-lg border mb-8">
           <div className="flex border-b overflow-x-auto">
             {[
               { id: 'orders', label: 'Orders', icon: Package },
@@ -490,19 +571,73 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
             ))}
           </div>
 
-          
-
-          {/* ✅ Tab Content */}
           <div className="p-6">
-            <AnimatePresence mode="wait">
-              {renderTabContent()}
-            </AnimatePresence>
+            {renderTabContent()}
           </div>
         </div>
 
+        {/* ✅ PORTAL DROPDOWN - Fixed positioning */}
+        <AnimatePresence>
+          {openDropdownId && (() => {
+            const buttonElement = document.querySelector(`[data-order-id="${openDropdownId}"]`);
+            const rect = buttonElement?.getBoundingClientRect();
+            
+            if (!rect) return null;
+            
+            return (
+              <>
+                {/* Backdrop */}
+                <div 
+                  className="fixed inset-0 z-[100]" 
+                  onClick={() => setOpenDropdownId(null)}
+                />
+                {/* Dropdown Menu */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="fixed z-[101] bg-white rounded-lg shadow-2xl border-2 border-gray-200 py-1 w-56"
+                  style={{
+                    top: `${dropdownPosition.top}px`,
+                    left: dropdownPosition.left !== 'auto' ? `${dropdownPosition.left}px` : 'auto',
+                    right: dropdownPosition.right !== 'auto' ? `${dropdownPosition.right}px` : 'auto',
+                    maxHeight: '300px',
+                    overflowY: 'auto'
+                  }}
+                >
+                  {statusOptions
+                    .filter((s) => s.value !== 'all' && s.value !== orders.find(o => o.id === openDropdownId)?.status)
+                    .map((s) => (
+                      <button
+                        key={s.value}
+                        onClick={() => {
+                          if (openDropdownId) {
+                            updateOrderStatus(openDropdownId, s.value);
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2"
+                      >
+                        <span className={`w-2 h-2 rounded-full ${
+                          s.value === 'PENDING' ? 'bg-yellow-500' :
+                          s.value === 'PROCESSING' ? 'bg-blue-500' :
+                          s.value === 'READY' ? 'bg-indigo-500' :
+                          s.value === 'ON_DELIVERY' ? 'bg-orange-500' :
+                          s.value === 'COMPLETED' ? 'bg-green-500' :
+                          'bg-red-500'
+                        }`}></span>
+                        <span>{s.label}</span>
+                      </button>
+                    ))}
+                </motion.div>
+              </>
+            );
+          })()}
+        </AnimatePresence>
+
         {/* Order Modal */}
         {selectedOrder && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -518,7 +653,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                 </button>
               </div>
               <div className="p-6 space-y-4">
-                {/* Order details content */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Order ID</p>
@@ -540,6 +674,50 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                     <p><strong>Phone:</strong> {selectedOrder.customerPhone}</p>
                   )}
                 </div>
+
+                {selectedOrder.adminNotes && extractPaymentInfo(selectedOrder.adminNotes) && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <QrCode className="w-5 h-5 text-blue-900" />
+                      Payment Information
+                    </h3>
+                    <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">GCash Reference Number</p>
+                        <p className="font-mono font-semibold text-blue-900">
+                          {extractPaymentInfo(selectedOrder.adminNotes)?.reference}
+                        </p>
+                      </div>
+                      
+                      {extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl && 
+                       extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl !== 'Not uploaded' && (
+                        <div>
+                          <p className="text-xs text-gray-600 mb-2">Payment Screenshot</p>
+                          <div className="flex items-start gap-3">
+                            <img
+                              src={extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl || ''}
+                              alt="Payment Proof"
+                              className="w-32 h-32 object-cover rounded-lg border-2 border-blue-200 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => window.open(extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl || '', '_blank')}
+                            />
+                            <div className="flex-1">
+                              <button
+                                onClick={() => window.open(extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl || '', '_blank')}
+                                className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center gap-1 mb-2"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View Full Size
+                              </button>
+                              <p className="text-xs text-gray-600">
+                                Click image to view in full size
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {selectedOrder.fileName && (
                   <div className="border-t pt-4">
@@ -585,8 +763,8 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
             </motion.div>
           </div>
         )}
-          {/* Low Stock Modal */}
-          <LowStockModal
+
+        <LowStockModal
           isOpen={showLowStockModal}
           onClose={() => setShowLowStockModal(false)}
         />

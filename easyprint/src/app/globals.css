@@ -66,6 +66,20 @@ body {
   animation: pulse-upload 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.status-dropdown {
+  position: relative;
+  z-index: 10;
+}
+
+.status-dropdown > div[role="menu"] {
+  z-index: 60 !important;
+}
+
+/* Prevent parent overflow from hiding dropdowns */
+.overflow-visible {
+  overflow: visible !important;
+}
+
 /* Preview Modal Backdrop Blur */
 .preview-backdrop {
   backdrop-filter: blur(8px);

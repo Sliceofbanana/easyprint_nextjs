@@ -41,6 +41,7 @@ interface Staff {
   name: string;
   email: string;
   role: string;
+  createdAt: string;
 }
 
 interface Order {
@@ -152,6 +153,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         const ordersRes = await fetch('/api/orders');
         if (ordersRes.ok) {
           const ordersData = await ordersRes.json();
+          console.log('📦 Admin fetched orders:', ordersData); // ✅ Debug log
           setOrders(ordersData);
         }
 
@@ -169,15 +171,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           setMessages(messagesData);
         }
 
-        // ✅ Fetch notifications
+        // Fetch notifications
         try {
           const notifRes = await fetch('/api/notifications');
           if (notifRes.ok) {
             const notifData = await notifRes.json();
             setNotifications(notifData);
-            setUnreadCount(notifData.filter((n: any) => !n.isRead).length);
+            setUnreadCount(notifData.filter((n: Notification) => !n.isRead).length);
           } else if (notifRes.status === 403) {
-            // User doesn't have permission - skip notifications
             console.log('User does not have permission to view notifications');
             setNotifications([]);
             setUnreadCount(0);
@@ -206,32 +207,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
 
     fetchData();
 
-    // ✅ Poll for new notifications every 30 seconds
-    const interval = setInterval(() => {
-      fetch('/api/notifications')
-        .then((res) => {
-          if (res.ok) {
-            return res.json();
-          }
-          if (res.status === 403) {
-            // User lost permission - stop polling
-            clearInterval(interval);
-            return null;
-          }
-          throw new Error(`HTTP ${res.status}`);
-        })
-        .then((data) => {
-          if (data) {
-            setNotifications(data);
-            setUnreadCount(data.filter((n: any) => !n.isRead).length);
-          }
-        })
-        .catch((error) => {
-          console.error('Polling error:', error);
-        });
-    }, 30000);
+    // ✅ Poll for new orders every 10 seconds
+    const ordersInterval = setInterval(async () => {
+      try {
+        const ordersRes = await fetch('/api/orders');
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          console.log('🔄 Polling orders:', ordersData.length); // ✅ Debug log
+          setOrders(ordersData);
+        }
+      } catch (error) {
+        console.error('Error polling orders:', error);
+      }
+    }, 10000); // 10 seconds
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(ordersInterval);
+    };
   }, [toast]);
 
   // ✅ Calculate statistics

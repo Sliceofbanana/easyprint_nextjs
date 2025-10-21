@@ -52,10 +52,11 @@ model Order {
   completedAt   DateTime?
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
+  @@index([orderNumber])
   @@index([status])
-  @@index([createdAt])
-  @@map("orders")
 }
 
 // ✅ NEW: Product Management

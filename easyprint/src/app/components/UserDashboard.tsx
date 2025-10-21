@@ -58,12 +58,17 @@ export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
         if (!response.ok) throw new Error('Failed to fetch orders');
         
         const data = await response.json();
-        console.log('📦 Fetched orders:', data);
+        console.log('📦 User fetched orders:', data); // ✅ Debug log
         
         setOrders(data);
-        setActiveOrders(
-          data.filter((o: Order) => !['COMPLETED', 'CANCELLED'].includes(o.status))
+        
+        // ✅ Filter active orders (not completed or cancelled)
+        const active = data.filter((o: Order) => 
+          !['COMPLETED', 'CANCELLED'].includes(o.status)
         );
+        console.log('✅ Active orders:', active); // ✅ Debug log
+        
+        setActiveOrders(active);
       } catch (error) {
         console.error('Error fetching orders:', error);
         toast({
@@ -77,6 +82,10 @@ export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
     };
 
     fetchOrders();
+
+    // ✅ Poll for updates every 15 seconds
+    const interval = setInterval(fetchOrders, 15000);
+    return () => clearInterval(interval);
   }, [toast]);
 
   const getStatusInfo = (status: string) => {
