@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-// ✅ GET - Admin fetches ALL messages from ALL users
+// ✅ GET - Fetch user's own messages (same as /api/messages GET)
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -12,27 +12,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin or staff
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { role: true },
+      select: { id: true },
     });
 
-    if (user?.role !== 'ADMIN' && user?.role !== 'STAFF') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Fetch ALL messages (from all users)
     const messages = await prisma.message.findMany({
+      where: {
+        userId: user.id,
+      },
       include: {
-        user: { // Include who sent the message
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        responses: { // Include admin responses
+        responses: {
           include: {
             respondedBy: {
               select: {
@@ -47,13 +41,13 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: {
-        createdAt: 'desc', // Newest first
+        createdAt: 'desc',
       },
     });
 
     return NextResponse.json(messages);
   } catch (error) {
-    console.error('Error fetching admin messages:', error);
+    console.error('Error fetching user messages:', error);
     return NextResponse.json(
       { error: 'Failed to fetch messages' },
       { status: 500 }

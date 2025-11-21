@@ -12,6 +12,7 @@ type NavbarProps = {
 
 export default function Navbar({ user, onLogout }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
@@ -40,35 +41,57 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
               <span>New Order</span>
             </Link>
 
-            <div className="flex items-center space-x-2 p-2 rounded-lg border border-gray-200 bg-gray-50">
-              <div className="w-8 h-8 bg-blue-900 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-white" />
+            {/* User Dropdown */}
+            <div 
+              className="relative"
+              onMouseEnter={() => setIsUserDropdownOpen(true)}
+              onMouseLeave={() => setIsUserDropdownOpen(false)}
+            >
+              <div className="flex items-center space-x-2 p-2 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                <div className="w-8 h-8 bg-blue-900 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium text-gray-700">
+                    {user?.name || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-500 capitalize">
+                    {user?.role || 'user'}
+                  </p>
+                </div>
               </div>
-              <div className="text-sm">
-                <p className="font-medium text-gray-700">
-                  {user?.name || 'User'}
-                </p>
-                <p className="text-xs text-gray-500 capitalize">
-                  {user?.role || 'user'}
-                </p>
-              </div>
+
+              {/* Dropdown Menu */}
+              <AnimatePresence>
+                {isUserDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
+                  >
+                    <Link
+                      href="/dashboard"
+                      className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-900 transition-colors"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      <span className="font-medium">Dashboard</span>
+                    </Link>
+                    
+                    <div className="border-t border-gray-100"></div>
+                    
+                    <button
+                      onClick={onLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="font-medium">Logout</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-
-            <Link
-              href="/dashboard"
-              className="p-2 text-gray-600 hover:text-blue-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Dashboard"
-            >
-              <LayoutDashboard className="w-5 h-5" />
-            </Link>
-
-            <button
-              onClick={onLogout}
-              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Logout"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
           </div>
 
           {/* Mobile Menu Button */}

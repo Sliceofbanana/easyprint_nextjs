@@ -315,6 +315,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     }
 
     if (currentStep === 6) {
+      // ✅ Validate reference number
       if (!paymentProof.ref.trim()) {
         toast({
           title: 'Reference Number Required',
@@ -324,6 +325,17 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         return;
       }
       
+      // ✅ Validate reference number format (should be numeric)
+      if (!/^\d+$/.test(paymentProof.ref.trim())) {
+        toast({
+          title: 'Invalid Reference Number',
+          description: 'Reference number should contain only numbers.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // ✅ Validate screenshot upload
       if (!paymentProof.file || !paymentProof.url) {
         toast({
           title: 'Payment Screenshot Required',
@@ -333,70 +345,160 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         return;
       }
 
+      // ✅ Validate files exist
+      if (files.length === 0) {
+        toast({
+          title: 'No Files Uploaded',
+          description: 'Please go back and upload your files.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       handleSubmitOrder();
       return;
     }
-
-    setCurrentStep((prev) => Math.min(prev + 1, steps.length));
-  };
+    setCurrentStep((prev) => prev + 1);
+  }
 
   // ✅ Submit Order Function
   const handleSubmitOrder = async () => {
     try {
+      // ✅ Validate files exist
+      if (files.length === 0) {
+        toast({
+          title: 'No Files',
+          description: 'Please upload at least one file before submitting.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // ✅ Validate payment proof
+      if (!paymentProof.url || !paymentProof.ref.trim()) {
+        toast({
+          title: 'Payment Required',
+          description: 'Please upload payment screenshot and enter reference number.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // ✅ FIXED: Simplified adminNotes construction
+      const adminNotesLines = [
+        `Payment Ref: ${paymentProof.ref}`,
+        `Screenshot: ${paymentProof.url}`,
+        `Service: ${serviceType}`,
+      ];
+
+      if (serviceType === 'RUSH_ID') {
+        const selectedPackage = RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage);
+        if (selectedPackage) {
+          adminNotesLines.push(`Package: ${selectedPackage.name}`);
+        }
+      }
+
+      adminNotesLines.push(`Delivery: ${orderDetails.deliveryType}`);
+      
+      if (orderDetails.deliveryType === 'campus' && orderDetails.deliveryLocation) {
+        adminNotesLines.push(`Location: ${orderDetails.deliveryLocation}`);
+      }
+
+      if (orderDetails.specialInstructions?.trim()) {
+        adminNotesLines.push(`Instructions: ${orderDetails.specialInstructions.trim()}`);
+      }
+
+      const adminNotes = adminNotesLines.join('\n');
+      console.log('📝 Admin Notes being saved:', adminNotes);
+      console.log('💳 Payment Proof:', paymentProof);
+
+      // ✅ FIXED: Map internal paper size names to Prisma enum values
+      const PAPER_SIZE_MAP: Record<string, string> = {
+        'short': 'LETTER',
+        'a4': 'A4',
+        'long': 'LEGAL',
+        'a3': 'A3', 
+      };
+
+      // ✅ FIXED: Map internal print mode to Prisma enum values
+      const COLOR_TYPE_MAP: Record<string, string> = {
+        'black': 'BLACK_AND_WHITE',
+        'partial': 'PARTIAL_COLOR',
+        'full': 'COLOR',
+      };
+
+      // ✅ Base payload that all orders need
       const basePayload = {
-        customerName: orderDetails.contactName,
-        customerEmail: orderDetails.contactEmail,
-        customerPhone: orderDetails.contactPhone,
-        serviceType: serviceType || 'DOCUMENT_PRINTING',
+        customerName: orderDetails.contactName.trim(),
+        customerEmail: orderDetails.contactEmail.trim(),
+        customerPhone: orderDetails.contactPhone.trim(),
         totalPrice: orderTotal,
-        notes: `Service: ${serviceType}${serviceType === 'RUSH_ID' ? `\nPackage: ${orderDetails.rushPackage}\n${RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.name}` : ''}\nDelivery: ${orderDetails.deliveryType}${orderDetails.deliveryType === 'campus' ? `\nLocation: ${orderDetails.deliveryLocation}` : ''}\n${orderDetails.specialInstructions || ''}`,
+        fileUrl: files[0]?.url || '',
+        fileName: files[0]?.name || 'document.pdf',
+        adminNotes: adminNotes,
         paymentProofUrl: paymentProof.url,
-        paymentProof: {
-          ref: paymentProof.ref,
-          url: paymentProof.url,
-        },
+        paymentReference: paymentProof.ref,
+        adminNotes: `Service: ${serviceType}\nDelivery: ${orderDetails.deliveryType}\nLocation: ${orderDetails.deliveryLocation || 'N/A'}`,
       };
 
       let orderPayload;
 
       if (serviceType === 'RUSH_ID') {
         const selectedPackage = RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage);
+        
+        if (!selectedPackage) {
+          toast({
+            title: 'Package Not Selected',
+            description: 'Please select a Rush ID package.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
         orderPayload = {
           ...basePayload,
           paperSize: 'A4',
-          colorType: 'FULL_COLOR',
-          copies: selectedPackage?.copies || 4,
+          colorType: 'COLOR',
+          copies: selectedPackage.copies,
           pages: 1,
           bindingType: 'NONE',
-          fileUrl: files[0]?.url || '',
-          fileName: files[0]?.name || 'id-photo.jpg',
-          pricePerPage: 0,
         };
       } else {
+        // Document Printing
+        const totalPages = files.reduce((sum, f) => sum + (f.pages || 1), 0);
+        
+        // ✅ FIXED: Map binding type to Prisma enum
+        const BINDING_MAP: Record<string, string> = {
+          'none': 'NONE',
+          'book-soft': 'BOOK_SOFT',
+          'book-hard': 'BOOK_HARD',
+          'wire-soft': 'WIRE_SOFT',
+          'wire-hard': 'WIRE_HARD',
+        };
+
         orderPayload = {
           ...basePayload,
-          paperSize: orderDetails.paperSize.toUpperCase(),
-          colorType: orderDetails.printMode === 'black' ? 'BLACK_AND_WHITE' : 
-                     orderDetails.printMode === 'partial' ? 'PARTIAL_COLOR' :
-                     orderDetails.printMode === 'full' ? 'FULL_COLOR' : 'BORDERLESS',
+          paperSize: PAPER_SIZE_MAP[orderDetails.paperSize] || 'A4',
+          colorType: COLOR_TYPE_MAP[orderDetails.printMode] || 'BLACK_AND_WHITE',
           copies: orderDetails.copies,
-          pages: files.reduce((sum, f) => sum + (f.pages || 1), 0),
-          bindingType: orderDetails.binding.toUpperCase().replace('-', '_'),
-          fileUrl: files[0]?.url || '',
-          fileName: files[0]?.name || 'document.pdf',
-          pricePerPage: PRINT_PRICES[orderDetails.paperSize]?.[orderDetails.printMode] || 0,
+          pages: totalPages,
+          bindingType: BINDING_MAP[orderDetails.binding] || 'NONE',
         };
       }
 
-      console.log('📤 Submitting order:', orderPayload);
+      console.log('📤 Submitting order payload:', orderPayload);
 
+      // ✅ Submit order
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderPayload),
       });
 
+      // ✅ Get response text first
       const responseText = await response.text();
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response body:', responseText);
 
       if (!response.ok) {
         let errorData;
@@ -405,6 +507,8 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         } catch {
           errorData = { error: responseText || 'Unknown error' };
         }
+        
+        console.error('❌ Order creation failed:', errorData);
         
         toast({
           title: 'Order Failed',
@@ -415,22 +519,26 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         throw new Error(errorData.error || 'Failed to create order');
       }
 
+      // ✅ Parse success response
       const data = JSON.parse(responseText);
-      setOrderId(data.order?.orderNumber || '1001');
+      console.log('✅ Order created:', data);
+      
+      setOrderId(data.orderNumber || data.order?.orderNumber || '1001');
 
       toast({
-        title: 'Order Placed!',
+        title: 'Order Placed! 🎉',
         description: `Your ${serviceType === 'RUSH_ID' ? 'Rush ID' : 'printing'} order has been submitted successfully.`,
       });
 
       setCurrentStep(7);
     } catch (error) {
-      console.error('Order submission error:', error);
+      console.error('❌ Order submission error:', error);
       
+      // ✅ Only show toast if not already shown
       if (!(error instanceof Error && error.message.includes('Failed to create order'))) {
         toast({
-          title: 'Error',
-          description: error instanceof Error ? error.message : 'Failed to place order. Please try again.',
+          title: 'Submission Error',
+          description: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.',
           variant: 'destructive',
         });
       }

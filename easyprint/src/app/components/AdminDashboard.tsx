@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '../components/ui/Use-Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -24,6 +24,9 @@ import {
   X,
   CheckCircle,
   Save,
+  RefreshCw,
+  Send,
+  Clock,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -80,7 +83,21 @@ interface Message {
   message: string;
   status: string;
   createdAt: string;
+  updatedAt: string;
   user: {
+    id: string;
+    name: string;
+    email: string;
+    
+  };
+  responses?: MessageResponse[];
+}
+
+interface MessageResponse {
+  id: string;
+  message: string;
+  createdAt: string;
+  respondedBy: {
     name: string;
     email: string;
   };
@@ -124,7 +141,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [reportPeriod, setReportPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]); // ✅ Fixed type
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [showAddInventory, setShowAddInventory] = useState(false);
@@ -137,61 +154,114 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     unit: '',
     minStockLevel: '',
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastNotificationCount, setLastNotificationCount] = useState(0);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [responseText, setResponseText] = useState('');
+  const [sendingResponse, setSendingResponse] = useState(false);
+  const [lastMessageCount, setLastMessageCount] = useState(0);
+  const [messageFilter, setMessageFilter] = useState<'all' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('all');
 
-  // ✅ Fetch data on mount
+  // ✅ Memoized fetch messages function
+  const fetchMessages = useCallback(async (showToast = false) => {
+    try {
+      const messagesRes = await fetch('/api/admin/messages');
+      if (messagesRes.ok) {
+        const messagesData: Message[] = await messagesRes.json();
+        const unreadMessages = messagesData.filter((m) => m.status === 'PENDING').length;
+        
+        // ✅ Check for new messages
+        if (showToast && unreadMessages > lastMessageCount && lastMessageCount > 0) {
+          const newCount = unreadMessages - lastMessageCount;
+          toast({
+            title: '📬 New Customer Message!',
+            description: `${newCount} new message${newCount > 1 ? 's' : ''} received`,
+            variant: 'default',
+          });
+          
+          // ✅ Play notification sound
+          if (typeof window !== 'undefined') {
+            const audio = new Audio('/notification.mp3');
+            audio.play().catch(() => {});
+          }
+        }
+        
+        setMessages(messagesData);
+        setLastMessageCount(unreadMessages);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  }, [toast, lastMessageCount]);
+
+  // ✅ Memoized fetch notifications function
+  const fetchNotifications = useCallback(async (showToast = false) => {
+    try {
+      setIsRefreshing(true);
+      const notifRes = await fetch('/api/notifications');
+      
+      if (notifRes.ok) {
+        const notifData: Notification[] = await notifRes.json();
+        const unread = notifData.filter((n) => !n.isRead).length;
+        
+        if (showToast && unread > lastNotificationCount && lastNotificationCount > 0) {
+          const newCount = unread - lastNotificationCount;
+          toast({
+            title: '🔔 New Low Stock Alert!',
+            description: `${newCount} new item${newCount > 1 ? 's' : ''} reported as low stock`,
+            variant: 'default',
+          });
+          
+          if (typeof window !== 'undefined') {
+            const audio = new Audio('/notification.mp3');
+            audio.play().catch(() => {});
+          }
+        }
+        
+        setNotifications(notifData);
+        setUnreadCount(unread);
+        setLastNotificationCount(unread);
+      } else if (notifRes.status === 403) {
+        console.log('User does not have permission to view notifications');
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [toast, lastNotificationCount]);
+
+  // ✅ Initial data fetch
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch staff
         const staffRes = await fetch('/api/admin/staff');
         if (staffRes.ok) {
           const staffData = await staffRes.json();
           setStaffList(staffData);
         }
 
-        // Fetch orders
         const ordersRes = await fetch('/api/orders');
         if (ordersRes.ok) {
           const ordersData = await ordersRes.json();
-          console.log('📦 Admin fetched orders:', ordersData); // ✅ Debug log
           setOrders(ordersData);
         }
 
-        // Fetch inventory
         const inventoryRes = await fetch('/api/admin/inventory');
         if (inventoryRes.ok) {
           const inventoryData = await inventoryRes.json();
           setInventory(inventoryData);
         }
 
-        // Fetch messages
         const messagesRes = await fetch('/api/admin/messages');
         if (messagesRes.ok) {
           const messagesData = await messagesRes.json();
           setMessages(messagesData);
         }
 
-        // Fetch notifications
-        try {
-          const notifRes = await fetch('/api/notifications');
-          if (notifRes.ok) {
-            const notifData = await notifRes.json();
-            setNotifications(notifData);
-            setUnreadCount(notifData.filter((n: Notification) => !n.isRead).length);
-          } else if (notifRes.status === 403) {
-            console.log('User does not have permission to view notifications');
-            setNotifications([]);
-            setUnreadCount(0);
-          } else {
-            console.warn('Failed to fetch notifications:', notifRes.status);
-            setNotifications([]);
-            setUnreadCount(0);
-          }
-        } catch (notifError) {
-          console.error('Error fetching notifications:', notifError);
-          setNotifications([]);
-          setUnreadCount(0);
-        }
+        await fetchNotifications(false);
 
       } catch (error) {
         console.error('Error fetching admin data:', error);
@@ -206,25 +276,217 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     };
 
     fetchData();
+  }, [fetchNotifications, toast]);
 
-    // ✅ Poll for new orders every 10 seconds
+  // ✅ Real-time polling for notifications (every 5 seconds)
+  useEffect(() => {
+    const notificationInterval = setInterval(() => {
+      fetchNotifications(true);
+    }, 5000);
+
+    return () => clearInterval(notificationInterval);
+  }, [fetchNotifications]);
+
+  // ✅ Poll for orders (every 10 seconds)
+  useEffect(() => {
     const ordersInterval = setInterval(async () => {
       try {
         const ordersRes = await fetch('/api/orders');
         if (ordersRes.ok) {
           const ordersData = await ordersRes.json();
-          console.log('🔄 Polling orders:', ordersData.length); // ✅ Debug log
           setOrders(ordersData);
         }
       } catch (error) {
         console.error('Error polling orders:', error);
       }
-    }, 10000); // 10 seconds
+    }, 10000);
 
-    return () => {
-      clearInterval(ordersInterval);
+    return () => clearInterval(ordersInterval);
+  }, []);
+
+  // ✅ Update message status
+  const handleUpdateMessageStatus = async (messageId: string, newStatus: 'PENDING' | 'IN_PROGRESS' | 'RESOLVED') => {
+    try {
+      const response = await fetch(`/api/admin/messages/${messageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update status');
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, status: newStatus } : msg
+        )
+      );
+
+      toast({
+        title: 'Status Updated',
+        description: `Message marked as ${newStatus.toLowerCase().replace('_', ' ')}`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update message status',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  useEffect(() => {
+    const messagesInterval = setInterval(() => {
+      fetchMessages(true);
+    }, 3000);
+    return () => clearInterval(messagesInterval);
+  }, [fetchMessages]);
+
+    // ✅ Then handleSendResponse should be:
+    const handleSendResponse = async (messageId: string) => {
+      if (!responseText.trim()) {
+        toast({
+          title: 'Empty Response',
+          description: 'Please enter a response message',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setSendingResponse(true);
+      try {
+        const response = await fetch(`/api/admin/messages/${messageId}/respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: responseText }),
+        });
+
+        if (!response.ok) throw new Error('Failed to send response');
+
+        const updatedMessage = await response.json();
+        
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId ? updatedMessage : msg
+          )
+        );
+
+        setSelectedMessage(updatedMessage);
+        setResponseText('');
+
+        toast({
+          title: 'Response Sent',
+          description: 'Your response has been sent to the customer',
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to send response',
+          variant: 'destructive',
+        });
+      } finally {
+        setSendingResponse(false);
+      }
     };
-  }, [toast]);
+
+  // ✅ Manual refresh handler
+  const handleManualRefresh = async () => {
+    await fetchNotifications(false);
+    toast({
+      title: 'Refreshed',
+      description: 'Notifications updated successfully',
+    });
+  };
+
+  // ✅ Mark all as read
+  const handleMarkAllAsRead = async () => {
+    const previousNotifications = [...notifications];
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+
+    try {
+      await Promise.all(
+        notifications
+          .filter((n) => !n.isRead)
+          .map((n) => fetch(`/api/notifications/${n.id}`, { method: 'PATCH' }))
+      );
+      
+      toast({
+        title: 'Success',
+        description: 'All alerts marked as done',
+      });
+      
+      await fetchNotifications(false);
+    } catch (error) {
+      setNotifications(previousNotifications);
+      setUnreadCount(previousNotifications.filter(n => !n.isRead).length);
+      toast({
+        title: 'Error',
+        description: 'Failed to update notifications',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // ✅ Mark single notification as read
+  const handleMarkAsRead = async (notifId: string, itemName?: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n))
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+
+    try {
+      const response = await fetch(`/api/notifications/${notifId}`, {
+        method: 'PATCH',
+      });
+
+      if (!response.ok) throw new Error('Failed to update');
+
+      toast({
+        title: 'Marked as Done',
+        description: `${itemName || 'Alert'} completed`,
+      });
+    } catch (error) {
+      await fetchNotifications(false);
+      toast({
+        title: 'Error',
+        description: 'Failed to mark as done',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // ✅ Clear completed notifications
+  const handleClearCompleted = async () => {
+    const completedNotifs = notifications.filter((n) => n.isRead);
+    
+    if (completedNotifs.length === 0) {
+      toast({
+        title: 'No Completed Alerts',
+        description: 'There are no completed alerts to clear',
+      });
+      return;
+    }
+
+    try {
+      await Promise.all(
+        completedNotifs.map((n) =>
+          fetch(`/api/notifications/${n.id}`, { method: 'DELETE' })
+        )
+      );
+      
+      setNotifications(prev => prev.filter(n => !n.isRead));
+      
+      toast({
+        title: 'Cleaned Up',
+        description: `${completedNotifs.length} completed alert${completedNotifs.length > 1 ? 's' : ''} removed`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to clear notifications',
+        variant: 'destructive',
+      });
+    }
+  };
 
   // ✅ Calculate statistics
   const stats = {
@@ -240,7 +502,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     unreadMessages: messages.filter((m) => m.status === 'PENDING').length,
   };
 
-  // ✅ Export Sales Report to Excel
+  // ✅ Filter messages
+  const filteredMessages = messageFilter === 'all' 
+    ? messages 
+    : messages.filter((m) => m.status === messageFilter);
+  
   const exportSalesReport = () => {
     const getOrdersForPeriod = () => {
       const now = new Date();
@@ -289,7 +555,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     });
   };
 
-  // ✅ Staff Management Functions
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -308,7 +573,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       setShowAddStaff(false);
       setStaffForm({ name: '', email: '', password: '', role: 'STAFF' });
       
-      // Refresh staff list
       const staffRes = await fetch('/api/admin/staff');
       const staffData = await staffRes.json();
       setStaffList(staffData);
@@ -335,7 +599,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     }
   };
 
-  // ✅ Inventory Management Functions
   const handleAddInventory = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -351,7 +614,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       setShowAddInventory(false);
       setInventoryForm({ itemName: '', category: '', quantity: '', unit: '', minStockLevel: '' });
       
-      // Refresh inventory
       const invRes = await fetch('/api/admin/inventory');
       const invData = await invRes.json();
       setInventory(invData);
@@ -398,52 +660,51 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   };
 
   const downloadDocument = async (order: Order) => {
-  if (!order.fileUrl) {
-    toast({
-      title: 'No File',
-      description: 'This order does not have an uploaded document.',
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  try {
-    toast({
-      title: 'Downloading',
-      description: 'Starting download...',
-    });
-
-    const encodedUrl = encodeURIComponent(order.fileUrl);
-    const response = await fetch(`/api/files/proxy?url=${encodedUrl}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!order.fileUrl) {
+      toast({
+        title: 'No File',
+        description: 'This order does not have an uploaded document.',
+        variant: 'destructive',
+      });
+      return;
     }
 
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = order.fileName || 'document.pdf';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    try {
+      toast({
+        title: 'Downloading',
+        description: 'Starting download...',
+      });
 
-    toast({
-      title: 'Downloaded',
-      description: `${link.download} downloaded successfully`,
-    });
-  } catch (error) {
-    console.error('Download error:', error);
-    toast({
-      title: 'Download Failed',
-      description: error instanceof Error ? error.message : 'Failed to download document',
-      variant: 'destructive',
-    });
-  }
-};
+      const response = await fetch(order.fileUrl);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = order.fileName || 'document.pdf';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Downloaded',
+        description: `${link.download} downloaded successfully`,
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: 'Download Failed',
+        description: error instanceof Error ? error.message : 'Failed to download document',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -573,7 +834,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
             >
               <tab.icon className="w-5 h-5" />
               <span>{tab.label}</span>
-              {tab.badge > 0 && (
+              {(tab.badge ?? 0) > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                   {tab.badge}
                 </span>
@@ -608,8 +869,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                             <div className="flex gap-3 mt-2">
                               <button
                                 onClick={() => {
-                                  const encodedUrl = encodeURIComponent(order.fileUrl);
-                                  window.open(`/api/files/proxy?url=${encodedUrl}`, '_blank');
+                                  if (order.fileUrl) {
+                                    window.open(order.fileUrl, '_blank');
+                                  }
                                 }}
                                 className="text-blue-600 hover:underline text-xs flex items-center gap-1"
                               >
@@ -758,20 +1020,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                                   <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
                                     Current Stock
                                   </p>
-                                  <p className={`text-lg font-bold ${
-                                    notif.data.currentStock === 0
-                                      ? 'text-red-600'
-                                      : notif.data.currentStock < 10
-                                      ? 'text-orange-600'
-                                      : 'text-gray-900'
-                                  }`}>
-                                    {notif.data.currentStock}
-                                    {notif.data.currentStock === 0 && (
-                                      <span className="text-xs text-red-600 font-normal ml-1">
-                                        (OUT)
-                                      </span>
-                                    )}
-                                  </p>
+                                  {typeof notif.data?.currentStock === 'number' ? (
+                                    <p className={`text-lg font-bold ${
+                                      notif.data.currentStock === 0
+                                        ? 'text-red-600'
+                                        : notif.data.currentStock < 10
+                                        ? 'text-orange-600'
+                                        : 'text-gray-900'
+                                    }`}>
+                                      {notif.data.currentStock}
+                                      {notif.data.currentStock === 0 && (
+                                        <span className="text-xs text-red-600 font-normal ml-1">
+                                          (OUT)
+                                        </span>
+                                      )}
+                                    </p>
+                                  ) : (
+                                    <p className="text-lg font-bold text-gray-900">N/A</p>
+                                  )}
                                 </div>
                                 
                                 <div>
@@ -880,6 +1146,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   )}
                 </motion.div>
               )}
+
               {activeTab === 'messages' && (
                 <motion.div
                   key="messages"
@@ -887,38 +1154,260 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                 >
-                  <h2 className="text-xl font-semibold mb-4">Customer Inquiries</h2>
-                  <div className="space-y-4">
-                    {messages.map((msg) => (
-                      <div key={msg.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-semibold">{msg.subject}</p>
-                            <p className="text-sm text-gray-600">
-                              From: {msg.user.name} ({msg.user.email})
-                            </p>
-                          </div>
-                          <span
-                            className={`px-3 py-1 text-xs font-medium rounded-lg ${
-                              msg.status === 'PENDING'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : msg.status === 'IN_PROGRESS'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-green-100 text-green-700'
-                            }`}
-                          >
-                            {msg.status}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 mb-2">{msg.message}</p>
-                        <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                          Respond
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl font-semibold">
+                        Customer Messages ({messages.length})
+                      </h2>
+                      {stats.unreadMessages > 0 && (
+                        <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm font-bold rounded-full animate-pulse">
+                          {stats.unreadMessages} New
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* ✅ Status Filter */}
+                    <div className="flex gap-2 flex-wrap">
+                      {(['all', 'PENDING', 'IN_PROGRESS', 'RESOLVED'] as const).map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => setMessageFilter(status)}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            messageFilter === status
+                              ? 'bg-blue-900 text-white'
+                              : 'bg-white border hover:bg-gray-50'
+                          }`}
+                        >
+                          {status === 'all' ? 'All' : status.replace('_', ' ')}
                         </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
+
+                  {/* ✅ Auto-refresh indicator */}
+                  <div className="mb-4 px-4 py-2 bg-purple-50 border border-purple-200 rounded-lg flex items-center gap-2 text-sm">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                    <span className="text-purple-900 font-medium">
+                      Auto-refreshing every 3 seconds
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {filteredMessages.length === 0 ? (
+                      <div className="text-center py-12 bg-gray-50 rounded-lg">
+                        <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-600 font-medium mb-2">No Messages</p>
+                        <p className="text-sm text-gray-500">
+                          {messageFilter === 'all' 
+                            ? 'No customer messages yet' 
+                            : `No ${messageFilter.toLowerCase().replace('_', ' ')} messages`
+                          }
+                        </p>
+                      </div>
+                    ) : (
+                      filteredMessages.map((msg, index) => (
+                        <motion.div
+                          key={msg.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className={`rounded-lg border overflow-hidden transition-all ${
+                            msg.status === 'PENDING'
+                              ? 'bg-yellow-50 border-yellow-300 shadow-md'
+                              : msg.status === 'IN_PROGRESS'
+                              ? 'bg-blue-50 border-blue-300'
+                              : 'bg-gray-50 border-gray-200 opacity-75'
+                          }`}
+                        >
+                          {/* Message Header */}
+                          <div className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                msg.status === 'PENDING' ? 'bg-yellow-100' :
+                                msg.status === 'IN_PROGRESS' ? 'bg-blue-100' :
+                                'bg-gray-200'
+                              }`}>
+                                <MessageSquare className={`w-5 h-5 ${
+                                  msg.status === 'PENDING' ? 'text-yellow-600 animate-pulse' :
+                                  msg.status === 'IN_PROGRESS' ? 'text-blue-600' :
+                                  'text-gray-400'
+                                }`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-gray-900 truncate">{msg.subject}</h3>
+                                <p className="text-sm text-gray-600 truncate">
+                                  From: {msg.user.name} ({msg.user.email})
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                  <Clock className="w-3 h-3" />
+                                  {new Date(msg.createdAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Status Badge */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                msg.status === 'PENDING'
+                                  ? 'bg-yellow-600 text-white animate-pulse'
+                                  : msg.status === 'IN_PROGRESS'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-green-100 text-green-700'
+                              }`}>
+                                {msg.status.replace('_', ' ')}
+                              </span>
+                              
+                              <button
+                                onClick={() => setSelectedMessage(selectedMessage?.id === msg.id ? null : msg)}
+                                className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                              >
+                                {selectedMessage?.id === msg.id ? 'Close' : 'View Details'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Message Body */}
+                          <div className="p-4">
+                            <p className="text-sm text-gray-700 mb-3 whitespace-pre-wrap">{msg.message}</p>
+
+                            {/* ✅ Quick Status Change Buttons */}
+                            {msg.status !== 'RESOLVED' && selectedMessage?.id !== msg.id && (
+                              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+                                {msg.status === 'PENDING' && (
+                                  <button
+                                    onClick={() => handleUpdateMessageStatus(msg.id, 'IN_PROGRESS')}
+                                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                  >
+                                    <Clock className="w-3 h-3" />
+                                    Mark In Progress
+                                  </button>
+                                )}
+                                {msg.status === 'IN_PROGRESS' && (
+                                  <button
+                                    onClick={() => handleUpdateMessageStatus(msg.id, 'RESOLVED')}
+                                    className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                                  >
+                                    <CheckCircle className="w-3 h-3" />
+                                    Mark Resolved
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ✅ Expanded Message Details */}
+                          <AnimatePresence>
+                            {selectedMessage?.id === msg.id && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="border-t bg-white overflow-hidden"
+                              >
+                                <div className="p-4 space-y-4">
+                                  {/* Response History */}
+                                  {msg.responses && msg.responses.length > 0 && (
+                                    <div>
+                                      <h4 className="font-semibold text-sm mb-3 text-gray-700">Response History</h4>
+                                      <div className="space-y-2">
+                                        {msg.responses.map((response) => (
+                                          <div key={response.id} className="p-3 bg-blue-50 rounded-lg">
+                                            <div className="flex items-center justify-between mb-2">
+                                              <span className="text-xs font-semibold text-blue-900">
+                                                {response.respondedBy.name}
+                                              </span>
+                                              <span className="text-xs text-gray-500">
+                                                {new Date(response.createdAt).toLocaleString()}
+                                              </span>
+                                            </div>
+                                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{response.message}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* ✅ Response Form */}
+                                  {msg.status !== 'RESOLVED' && (
+                                    <div>
+                                      <label className="block text-sm font-semibold mb-2 text-gray-700">
+                                        Send Response
+                                      </label>
+                                      <textarea
+                                        value={responseText}
+                                        onChange={(e) => setResponseText(e.target.value)}
+                                        placeholder="Type your response..."
+                                        className="w-full px-4 py-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        rows={4}
+                                      />
+                                      <div className="flex gap-3 mt-3">
+                                        <button
+                                          onClick={() => handleSendResponse(msg.id)}
+                                          disabled={sendingResponse || !responseText.trim()}
+                                          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold"
+                                        >
+                                          {sendingResponse ? (
+                                            <>
+                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                              Sending...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Send className="w-4 h-4" />
+                                              Send Response
+                                            </>
+                                          )}
+                                        </button>
+                                        
+                                        {msg.status === 'PENDING' && (
+                                          <button
+                                            onClick={() => handleUpdateMessageStatus(msg.id, 'IN_PROGRESS')}
+                                            className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+                                          >
+                                            Mark In Progress
+                                          </button>
+                                        )}
+                                        
+                                        {msg.status === 'IN_PROGRESS' && (
+                                          <button
+                                            onClick={() => handleUpdateMessageStatus(msg.id, 'RESOLVED')}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                                          >
+                                            Mark Resolved
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* ✅ Summary */}
+                  {messages.length > 0 && (
+                    <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-purple-600" />
+                        <p className="text-sm font-medium text-purple-900">
+                          {stats.unreadMessages} pending • {messages.filter(m => m.status === 'IN_PROGRESS').length} in progress • {messages.filter(m => m.status === 'RESOLVED').length} resolved
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
+
               {activeTab === 'staff' && (
                 <motion.div
                   key="staff"

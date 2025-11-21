@@ -17,6 +17,7 @@ import {
   Settings,
   BarChart3,
   ImageIcon,
+  User,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
 import { AlertTriangle, Bell } from 'lucide-react';
@@ -130,46 +131,22 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
         if (!buttonElement) return;
 
         const rect = buttonElement.getBoundingClientRect();
-        const dropdownWidth = 224; // 56 * 4 (w-56 in pixels)
-        const dropdownMaxHeight = 300;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const padding = 8; // Reduced padding for closer positioning
-        const gap = 4; // Smaller gap between button and dropdown
+        const dropdownHeight = 210; // Approximate max height
+        const gap = 4; // Small gap between button and dropdown
 
-        let top = rect.bottom + gap; // Position just below the button
-        let left: number | 'auto' = 'auto';
-        let right: number | 'auto' = 'auto';
+        // Check if there's space below
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const shouldOpenUpward = spaceBelow < dropdownHeight;
 
-        // ✅ Check if there's space below
-        const spaceBelow = viewportHeight - rect.bottom - gap;
-        const spaceAbove = rect.top - gap;
-
-        if (spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow) {
-          // Open upwards if not enough space below
-          top = rect.top - Math.min(dropdownMaxHeight, spaceAbove) - gap;
-        }
-
-        // ✅ Horizontal positioning - align right edge with button right edge
-        const leftPosition = rect.right - dropdownWidth;
-        
-        if (leftPosition >= padding) {
-          // Align dropdown right edge with button right edge
-          left = leftPosition;
-        } else if (rect.left + dropdownWidth <= viewportWidth - padding) {
-          // Align dropdown left edge with button left edge
-          left = rect.left;
-        } else {
-          // Center align if neither works
-          left = Math.max(padding, (viewportWidth - dropdownWidth) / 2);
-        }
-
-        setDropdownPosition({ top, left, right });
+        setDropdownPosition({ 
+          top: shouldOpenUpward ? rect.top - dropdownHeight - gap : rect.bottom + gap,
+          left: rect.left, // Left-aligned (or use rect.right - 224 for right-aligned)
+          right: 'auto' 
+        });
       };
 
       calculatePosition();
       
-      // Recalculate on scroll or resize
       window.addEventListener('scroll', calculatePosition, true);
       window.addEventListener('resize', calculatePosition);
       
@@ -331,13 +308,18 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
   const extractPaymentInfo = (adminNotes?: string) => {
     if (!adminNotes) return null;
     
-    const refMatch = adminNotes.match(/Payment Ref:\s*(.+?)(?:\n|$)/);
-    const screenshotMatch = adminNotes.match(/Screenshot:\s*(.+?)(?:\n|$)/);
+    const refMatch = adminNotes.match(/Payment\s*Ref(?:erence)?:\s*(.+?)(?:\n|$)/i);
+    const screenshotMatch = adminNotes.match(/Screenshot:\s*(.+?)(?:\n|$)/i);
     
-    return {
-      reference: refMatch ? refMatch[1].trim() : 'N/A',
-      screenshotUrl: screenshotMatch ? screenshotMatch[1].trim() : null,
+    const reference = refMatch ? refMatch[1].trim() : null;
+    const screenshotUrl = screenshotMatch ? screenshotMatch[1].trim() : null;
+
+    const paymentInfo = {
+      reference: reference || 'No reference provided',
+      screenshotUrl: screenshotUrl || null,
     };
+    
+    return paymentInfo;
   };
 
   const getStatusLabel = (status: string) =>
@@ -580,30 +562,31 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
         <AnimatePresence>
           {openDropdownId && (() => {
             const buttonElement = document.querySelector(`[data-order-id="${openDropdownId}"]`);
-            const rect = buttonElement?.getBoundingClientRect();
-            
-            if (!rect) return null;
+            if (!buttonElement) return null;
             
             return (
               <>
-                {/* Backdrop */}
+                {/* Backdrop - click to close */}
                 <div 
                   className="fixed inset-0 z-[100]" 
                   onClick={() => setOpenDropdownId(null)}
                 />
+                
                 {/* Dropdown Menu */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
+                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
                   className="fixed z-[101] bg-white rounded-lg shadow-2xl border-2 border-gray-200 py-1 w-56"
                   style={{
                     top: `${dropdownPosition.top}px`,
-                    left: dropdownPosition.left !== 'auto' ? `${dropdownPosition.left}px` : 'auto',
-                    right: dropdownPosition.right !== 'auto' ? `${dropdownPosition.right}px` : 'auto',
+                    left: `${dropdownPosition.left}px`,
                     maxHeight: '300px',
-                    overflowY: 'auto'
+                    overflowY: 'auto',
+                    // ✅ Add smooth scrollbar styling
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#cbd5e1 #f1f5f9'
                   }}
                 >
                   {statusOptions
@@ -618,7 +601,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                         }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors flex items-center gap-2"
                       >
-                        <span className={`w-2 h-2 rounded-full ${
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                           s.value === 'PENDING' ? 'bg-yellow-500' :
                           s.value === 'PROCESSING' ? 'bg-blue-500' :
                           s.value === 'READY' ? 'bg-indigo-500' :
@@ -641,22 +624,24 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Order Details</h2>
+              <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-blue-900 to-blue-700">
+                <h2 className="text-xl font-semibold text-white">Order Details & Payment Verification</h2>
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                  className="text-white hover:text-gray-200 text-2xl"
                 >
                   ✕
                 </button>
               </div>
-              <div className="p-6 space-y-4">
+              
+              <div className="p-6 space-y-6">
+                {/* Order Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Order ID</p>
-                    <p className="font-semibold">{selectedOrder.orderNumber || `#${selectedOrder.id}`}</p>
+                    <p className="font-semibold text-lg">{selectedOrder.orderNumber || `#${selectedOrder.id}`}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Status</p>
@@ -666,62 +651,192 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                   </div>
                 </div>
 
-                <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-2">Customer Information</h3>
-                  <p><strong>Name:</strong> {selectedOrder.customerName}</p>
-                  <p><strong>Email:</strong> {selectedOrder.customerEmail}</p>
-                  {selectedOrder.customerPhone && (
-                    <p><strong>Phone:</strong> {selectedOrder.customerPhone}</p>
-                  )}
-                </div>
-
-                {selectedOrder.adminNotes && extractPaymentInfo(selectedOrder.adminNotes) && (
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <QrCode className="w-5 h-5 text-blue-900" />
-                      Payment Information
-                    </h3>
-                    <div className="bg-blue-50 p-4 rounded-lg space-y-3">
-                      <div>
-                        <p className="text-xs text-gray-600 mb-1">GCash Reference Number</p>
-                        <p className="font-mono font-semibold text-blue-900">
-                          {extractPaymentInfo(selectedOrder.adminNotes)?.reference}
-                        </p>
-                      </div>
-                      
-                      {extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl && 
-                       extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl !== 'Not uploaded' && (
+                {/* ✅ PAYMENT VERIFICATION SECTION - PROMINENT */}
+                {(() => {
+                  const paymentInfo = extractPaymentInfo(selectedOrder.adminNotes);
+                  console.log('💳 Payment Info Check:', paymentInfo);
+                  console.log('📝 Admin Notes:', selectedOrder.adminNotes);
+                  
+                  return paymentInfo && (
+                    <div className="border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-yellow-50 p-6 rounded-xl shadow-lg">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                          <QrCode className="w-6 h-6 text-orange-600" />
+                        </div>
                         <div>
-                          <p className="text-xs text-gray-600 mb-2">Payment Screenshot</p>
-                          <div className="flex items-start gap-3">
-                            <img
-                              src={extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl || ''}
-                              alt="Payment Proof"
-                              className="w-32 h-32 object-cover rounded-lg border-2 border-blue-200 cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => window.open(extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl || '', '_blank')}
-                            />
-                            <div className="flex-1">
-                              <button
-                                onClick={() => window.open(extractPaymentInfo(selectedOrder.adminNotes)?.screenshotUrl || '', '_blank')}
-                                className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center gap-1 mb-2"
-                              >
-                                <Eye className="w-3 h-3" />
-                                View Full Size
-                              </button>
-                              <p className="text-xs text-gray-600">
-                                Click image to view in full size
-                              </p>
-                            </div>
+                          <h3 className="font-bold text-lg text-gray-900">Payment Verification Required</h3>
+                          <p className="text-sm text-gray-600">Review customer's payment proof below</p>
+                        </div>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* Payment Reference */}
+                        <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                            GCash Reference Number
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono font-bold text-xl text-orange-600">
+                              {paymentInfo.reference}
+                            </p>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(paymentInfo.reference || '');
+                                toast({
+                                  title: 'Copied!',
+                                  description: 'Reference number copied to clipboard',
+                                });
+                              }}
+                              className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                              title="Copy reference number"
+                            >
+                              📋
+                            </button>
                           </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Verify this in your GCash transaction history
+                          </p>
+                        </div>
+
+                        {/* Payment Screenshot */}
+                        {paymentInfo.screenshotUrl && paymentInfo.screenshotUrl !== 'Not uploaded' && (
+                          <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                              Payment Screenshot
+                            </p>
+                            <div className="relative group">
+                              <img
+                                src={paymentInfo.screenshotUrl}
+                                alt="Payment Proof"
+                                className="w-full h-48 object-contain rounded-lg border-2 border-gray-200 cursor-pointer hover:border-orange-400 transition-all"
+                                onClick={() => window.open(paymentInfo.screenshotUrl || '', '_blank')}
+                                onError={(e) => {
+                                  console.error('❌ Failed to load payment screenshot:', paymentInfo.screenshotUrl);
+                                  e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%236b7280"%3EImage Error%3C/text%3E%3C/svg%3E';
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg flex items-center justify-center transition-all">
+                                <div className="opacity-0 group-hover:opacity-100 bg-white/90 px-4 py-2 rounded-lg transition-opacity">
+                                  <p className="text-xs font-medium text-gray-900 flex items-center gap-2">
+                                    <Eye className="w-4 h-4" />
+                                    Click to view full size
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => window.open(paymentInfo.screenshotUrl || '', '_blank')}
+                              className="w-full mt-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Full Screenshot
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Payment Amount Verification */}
+                      <div className="mt-4 bg-white p-4 rounded-lg border-2 border-orange-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                              Expected Payment Amount
+                            </p>
+                            <p className="text-2xl font-bold text-orange-600">
+                              ₱{selectedOrder.totalPrice.toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500 mb-1">Verify this matches</p>
+                            <p className="text-xs text-gray-500">the screenshot amount</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Actions */}
+                      {selectedOrder.status === 'PENDING' && (
+                        <div className="mt-4 flex gap-3">
+                          <button
+                            onClick={() => {
+                              updateOrderStatus(selectedOrder.id, 'PROCESSING');
+                              toast({
+                                title: 'Payment Verified',
+                                description: 'Order moved to processing',
+                              });
+                            }}
+                            className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                          >
+                            <CheckCircle className="w-5 h-5" />
+                            Approve Payment
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to reject this payment? This will cancel the order.')) {
+                                updateOrderStatus(selectedOrder.id, 'CANCELLED');
+                                toast({
+                                  title: 'Payment Rejected',
+                                  description: 'Order has been cancelled',
+                                  variant: 'destructive',
+                                });
+                              }
+                            }}
+                            className="px-4 py-3 border-2 border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-semibold"
+                          >
+                            Reject
+                          </button>
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
+                {/* Customer Information */}
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <User className="w-5 h-5 text-blue-900" />
+                    Customer Information
+                  </h3>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                    <p className="text-sm"><strong className="text-gray-600">Name:</strong> {selectedOrder.customerName}</p>
+                    <p className="text-sm"><strong className="text-gray-600">Email:</strong> {selectedOrder.customerEmail}</p>
+                    {selectedOrder.customerPhone && (
+                      <p className="text-sm"><strong className="text-gray-600">Phone:</strong> {selectedOrder.customerPhone}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Order Details */}
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-blue-900" />
+                    Order Specifications
+                  </h3>
+                  <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-3">
+                    {selectedOrder.paperSize && (
+                      <p className="text-sm"><strong className="text-gray-600">Paper:</strong> {selectedOrder.paperSize}</p>
+                    )}
+                    {selectedOrder.colorType && (
+                      <p className="text-sm"><strong className="text-gray-600">Type:</strong> {selectedOrder.colorType}</p>
+                    )}
+                    {selectedOrder.copies && (
+                      <p className="text-sm"><strong className="text-gray-600">Copies:</strong> {selectedOrder.copies}</p>
+                    )}
+                    {selectedOrder.pages && (
+                      <p className="text-sm"><strong className="text-gray-600">Pages:</strong> {selectedOrder.pages}</p>
+                    )}
+                    {selectedOrder.bindingType && selectedOrder.bindingType !== 'NONE' && (
+                      <p className="text-sm"><strong className="text-gray-600">Binding:</strong> {selectedOrder.bindingType}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Uploaded Document */}
                 {selectedOrder.fileName && (
                   <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-2">Uploaded Document</h3>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-blue-900" />
+                      Uploaded Document
+                    </h3>
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       <FileText className="w-5 h-5 text-blue-900" />
                       <div className="flex-1">
@@ -729,8 +844,10 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                         <div className="flex gap-3 mt-1">
                           <button
                             onClick={() => {
-                              const encodedUrl = encodeURIComponent(selectedOrder.fileUrl || '');
-                              window.open(`/api/files/proxy?url=${encodedUrl}`, '_blank');
+                              if (selectedOrder.fileUrl) {
+                                // ✅ Use direct URL (matches admin dashboard pattern)
+                                window.open(selectedOrder.fileUrl, '_blank');
+                              }
                             }}
                             className="text-blue-600 hover:underline text-xs flex items-center gap-1"
                           >
@@ -750,10 +867,11 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                   </div>
                 )}
 
+                {/* Print Receipt Button */}
                 <div className="border-t pt-4">
                   <button
                     onClick={() => printReceipt(selectedOrder)}
-                    className="w-full py-3 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg hover:from-green-700 hover:to-green-600 transition-all flex items-center justify-center gap-2 font-semibold"
+                    className="w-full py-3 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg hover:from-green-700 hover:to-green-600 transition-all flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl"
                   >
                     <Receipt className="w-5 h-5" />
                     Print Receipt

@@ -91,8 +91,9 @@ export async function POST(req: NextRequest) {
       pricePerPage,
       totalPrice,
       notes,
+      adminNotes,
       paymentProofUrl,
-      paymentProof,
+      paymentReference,
     } = body;
 
     // ✅ Validate required fields
@@ -108,12 +109,7 @@ export async function POST(req: NextRequest) {
       console.error('❌ Invalid totalPrice:', totalPrice);
       return NextResponse.json({ error: 'Valid total price is required' }, { status: 400 });
     }
-
-    // ✅ Generate order number as STRING
-    // Option 1: Use CUID (recommended - matches schema default)
-    // Prisma will auto-generate this, so we don't need to provide it
     
-    // Option 2: If you want custom format like "MQ_1001"
     const lastOrder = await prisma.order.findFirst({
       orderBy: { createdAt: 'desc' },
     });
@@ -147,9 +143,9 @@ export async function POST(req: NextRequest) {
       pricePerPage: parseFloat(String(pricePerPage)) || 0,
       totalPrice: parseFloat(String(totalPrice)),
       notes: notes ? String(notes).trim() : '',
-      adminNotes: paymentProof 
-        ? `Payment Ref: ${paymentProof.ref || 'N/A'}\nScreenshot: ${paymentProofUrl || 'Not uploaded'}` 
-        : '',
+      paymentProofUrl: paymentProofUrl || null,
+      paymentReference: paymentReference || null,
+      adminNotes: adminNotes || `Service: ${serviceType}\nDelivery: ${body.deliveryType || 'pickup'}`,
       status: 'PENDING',
     };
 

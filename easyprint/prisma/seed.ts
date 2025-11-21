@@ -6,50 +6,41 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...');
 
-  // Hash password (using 'password123' for all test users)
-  const hashedPassword = await bcrypt.hash('password123', 10);
-
-  // Create Admin User
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@easyprint.com' },
-    update: {},
-    create: {
-      email: 'admin@easyprint.com',
+  // ✅ Create Admin
+  const adminPassword = await bcrypt.hash('admin123', 10);
+  const admin = await prisma.user.create({
+    data: {
       name: 'Admin User',
-      password: hashedPassword,
+      email: 'admin@easyprint.com',
+      password: adminPassword,
       role: 'ADMIN',
-      emailVerified: true,
     },
   });
-  console.log('✅ Admin user created:', admin.email);
+  console.log('✅ Created Admin:', admin.email);
 
-  // Create Staff User
-  const staff = await prisma.user.upsert({
-    where: { email: 'staff@easyprint.com' },
-    update: {},
-    create: {
-      email: 'staff@easyprint.com',
+  // ✅ Create Staff
+  const staffPassword = await bcrypt.hash('staff123', 10);
+  const staff = await prisma.user.create({
+    data: {
       name: 'Staff Member',
-      password: hashedPassword,
+      email: 'staff@easyprint.com',
+      password: staffPassword,
       role: 'STAFF',
-      emailVerified: true,
     },
   });
-  console.log('✅ Staff user created:', staff.email);
+  console.log('✅ Created Staff:', staff.email);
 
-  // Create Regular User
-  const user = await prisma.user.upsert({
-    where: { email: 'user@easyprint.com' },
-    update: {},
-    create: {
-      email: 'user@easyprint.com',
-      name: 'Regular User',
-      password: hashedPassword,
-      role: 'USER',
-      emailVerified: true,
+  // ✅ Create Customer
+  const customerPassword = await bcrypt.hash('customer123', 10);
+  const customer = await prisma.user.create({
+    data: {
+      name: 'John Doe',
+      email: 'customer@easyprint.com',
+      password: customerPassword,
+      role: 'CUSTOMER',
     },
   });
-  console.log('✅ Regular user created:', user.email);
+  console.log('✅ Created Customer:', customer.email);
 
   console.log('🎉 Database seeded successfully!');
 }

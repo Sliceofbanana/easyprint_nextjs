@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSession } from 'next-auth/react';
 import {
   Package,
   Clock,
@@ -43,12 +44,75 @@ interface UserDashboardProps {
   onLogout?: () => void;
 }
 
-export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
+export default function UserDashboard({ user: initialUser, onLogout }: UserDashboardProps) {
+  const { data: session, update } = useSession(); 
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const { toast } = useToast();
+  
+  // ✅ Track user data in state for real-time updates
+  const [userData, setUserData] = useState<{ name?: string; email: string }>(initialUser);
+
+  // ✅ Update userData when session changes
+  useEffect(() => {
+    if (session?.user) {
+      setUserData({
+        name: session.user.name || undefined,
+        email: session.user.email || '',
+      });
+    }
+  }, [session]);
+
+  // ✅ Listen for profile update events
+  useEffect(() => {
+    const handleProfileUpdate = async () => {
+      console.log('🔄 Profile updated event received, refreshing session...');
+      
+      // Force session refresh
+      const updated = await update();
+      
+      if (updated?.user) {
+        setUserData({
+          name: updated.user.name || undefined,
+          email: updated.user.email || '',
+        });
+        
+        console.log('✅ Session refreshed:', updated.user.name);
+      }
+    };
+    
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+    return () => window.removeEventListener('profileUpdated', handleProfileUpdate);
+  }, [update]);
+
+  // ✅ Poll for session updates every 5 seconds (increased frequency)
+  useEffect(() => {
+    const refreshSession = async () => {
+      try {
+        const updated = await update();
+        
+        if (updated?.user && updated.user.name !== userData.name) {
+          console.log('🔄 Name changed detected:', {
+            old: userData.name,
+            new: updated.user.name
+          });
+          
+          setUserData({
+            name: updated.user.name || undefined,
+            email: updated.user.email || '',
+          });
+        }
+      } catch (error) {
+        console.error('Session refresh error:', error);
+      }
+    };
+
+    const sessionInterval = setInterval(refreshSession, 5000); // Every 5 seconds
+    
+    return () => clearInterval(sessionInterval);
+  }, [update, userData.name]);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -58,15 +122,14 @@ export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
         if (!response.ok) throw new Error('Failed to fetch orders');
         
         const data = await response.json();
-        console.log('📦 User fetched orders:', data); // ✅ Debug log
+        console.log('📦 User fetched orders:', data);
         
         setOrders(data);
         
-        // ✅ Filter active orders (not completed or cancelled)
         const active = data.filter((o: Order) => 
           !['COMPLETED', 'CANCELLED'].includes(o.status)
         );
-        console.log('✅ Active orders:', active); // ✅ Debug log
+        console.log('✅ Active orders:', active);
         
         setActiveOrders(active);
       } catch (error) {
@@ -83,7 +146,6 @@ export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
 
     fetchOrders();
 
-    // ✅ Poll for updates every 15 seconds
     const interval = setInterval(fetchOrders, 15000);
     return () => clearInterval(interval);
   }, [toast]);
@@ -232,9 +294,17 @@ export default function UserDashboard({ user, onLogout }: UserDashboardProps) {
     <div className="bg-gray-50 min-h-full py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Hi, {user.name || 'Customer'}!</h1>
+            {/* ✅ Use userData.name with animation when it changes */}
+            <motion.h1 
+              key={userData.name} // ✅ Re-animate when name changes
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="text-3xl font-bold text-gray-900"
+            >
+              Hi, {userData.name || 'Customer'}!
+            </motion.h1>
             <p className="text-gray-600">
               Ready to print today? You have {activeOrders.length} active order{activeOrders.length !== 1 ? 's' : ''}.
             </p>

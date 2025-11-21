@@ -10,6 +10,19 @@ export default function OrderPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
+  // ✅ FIXED: Proper logout handler
+  const handleLogout = async () => {
+    try {
+      await signOut({ 
+        redirect: true,
+        callbackUrl: '/login' 
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      router.push('/login');
+    }
+  };
+
   if (status === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -27,7 +40,7 @@ export default function OrderPage() {
     <>
       <Navbar
         user={{ name: user?.name, role: user?.role }}
-        onLogout={() => signOut({ callbackUrl: '/login' })}
+        onLogout={handleLogout}
       />
       <OrderSystem onBack={() => router.push('/dashboard')} />
     </>

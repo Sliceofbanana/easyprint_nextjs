@@ -1,22 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import prisma from '../../../lib/prisma';
+import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
-// GET all staff members
+// ✅ GET: Fetch all staff members (Admin only)
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as { role: string };
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true },
+    });
+
+    if (user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Fetch all staff and admin users
     const staff = await prisma.user.findMany({
       where: {
         role: {
@@ -29,7 +36,6 @@ export async function GET(req: NextRequest) {
         email: true,
         role: true,
         createdAt: true,
-        updatedAt: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -39,46 +45,78 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(staff);
   } catch (error) {
     console.error('Error fetching staff:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch staff' },
+      { status: 500 }
+    );
   }
 }
 
-// POST - Create new staff member
+// ✅ POST: Create new staff member (Admin only)
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as { role: string };
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true },
+    });
+
+    if (user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await req.json();
-    const { name, email, password, role } = body;
+    const { name, email, password, role } = await req.json();
 
-    if (!name || !email || !password || !role) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    // Validate input
+    if (!name?.trim() || !email?.trim() || !password?.trim()) {
+      return NextResponse.json(
+        { error: 'Name, email, and password are required' },
+        { status: 400 }
+      );
     }
 
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters' },
+        { status: 400 }
+      );
+    }
+
+    if (!['STAFF', 'ADMIN'].includes(role)) {
+      return NextResponse.json(
+        { error: 'Invalid role. Must be STAFF or ADMIN' },
+        { status: 400 }
+      );
+    }
+
+    // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.trim().toLowerCase() },
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: 'Email already exists' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Email already exists' },
+        { status: 409 }
+      );
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await prisma.user.create({
+    // Create staff member
+    const newStaff = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
         password: hashedPassword,
-        role: role.toUpperCase(),
+        role,
       },
       select: {
         id: true,
@@ -89,9 +127,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, user: newUser });
+    return NextResponse.json(newStaff, { status: 201 });
   } catch (error) {
     console.error('Error creating staff:', error);
-    return NextResponse.json({ error: 'Failed to create staff member' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to create staff member' },
+      { status: 500 }
+    );
   }
 }

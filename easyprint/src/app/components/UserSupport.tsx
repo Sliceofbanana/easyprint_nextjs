@@ -1,19 +1,29 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useToast } from './ui/Use-Toast';
+
+interface MessageResponse {
+  id: string;
+  message: string;
+  createdAt: string;
+  respondedBy: {
+    name: string;
+    email: string;
+  };
+}
 
 interface Message {
   id: string;
   subject: string;
   message: string;
   status: string;
-  response?: string;
   createdAt: string;
   updatedAt: string;
+  responses?: MessageResponse[]; // ✅ Changed from response to responses
 }
 
 const UserSupport = () => {
@@ -27,32 +37,49 @@ const UserSupport = () => {
     message: '',
   });
 
-  useEffect(() => {
-    fetchMessages();
-  }, []);
-
-  const fetchMessages = async () => {
+  // ✅ Memoized fetch function
+  const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch('/api/messages');
-      if (!response.ok) throw new Error('Failed to fetch messages');
+      console.log('📥 Fetching messages...');
+      const response = await fetch('/api/admin/message'); 
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
       
       const data = await response.json();
+      console.log('✅ Messages fetched:', data);
       setMessages(data);
     } catch (error) {
+      console.error('❌ Fetch error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load messages',
+        description: error instanceof Error ? error.message : 'Failed to load messages',
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
+
+  // ✅ Auto-refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchMessages();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [fetchMessages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.subject || !newMessage.message) {
+    if (!newMessage.subject.trim() || !newMessage.message.trim()) {
       toast({
         title: 'Incomplete Form',
         description: 'Please fill in both subject and message',
@@ -64,25 +91,37 @@ const UserSupport = () => {
     setSending(true);
 
     try {
+      console.log('📤 Sending message:', {
+        subject: newMessage.subject,
+        messageLength: newMessage.message.length,
+      });
+
       const response = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMessage),
+        body: JSON.stringify({
+          subject: newMessage.subject.trim(),
+          message: newMessage.message.trim(),
+        }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to send message');
+        throw new Error(data.error || data.details || 'Failed to send message');
       }
 
+      console.log('✅ Message sent:', data);
+
       toast({
-        title: 'Message Sent',
+        title: 'Message Sent! 📧',
         description: 'Your message has been sent to support. We will respond soon.',
       });
 
       setNewMessage({ subject: '', message: '' });
-      fetchMessages(); // Refresh messages list
+      await fetchMessages(); // ✅ Refresh messages immediately
     } catch (error) {
+      console.error('❌ Send error:', error);
       toast({
         title: 'Send Failed',
         description: error instanceof Error ? error.message : 'Failed to send message',
@@ -198,7 +237,14 @@ const UserSupport = () => {
 
             {/* Message History */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Messages</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Your Messages</h3>
+                {messages.length > 0 && (
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
+                    {messages.length} message{messages.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
               
               {loading ? (
                 <div className="text-center py-12">
@@ -217,20 +263,45 @@ const UserSupport = () => {
                     <div key={msg.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="font-semibold text-gray-900">{msg.subject}</h4>
-                        <span className={`px-3 py-1 text-xs font-medium rounded-full flex items-center gap-1 ${getStatusColor(msg.status)}`}>
+                        <span className={`px-3 py-1 text-xs font-medium rounded-full flex items-center gap-1 whitespace-nowrap ${getStatusColor(msg.status)}`}>
                           {getStatusIcon(msg.status)}
-                          {msg.status}
+                          {msg.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700 mb-2">{msg.message}</p>
-                      {msg.response && (
-                        <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-900 rounded">
-                          <p className="text-xs font-semibold text-blue-900 mb-1">Admin Response:</p>
-                          <p className="text-sm text-gray-700">{msg.response}</p>
+                      <p className="text-sm text-gray-700 mb-2 whitespace-pre-wrap">{msg.message}</p>
+                      
+                      {/* ✅ Show admin responses (plural) */}
+                      {msg.responses && msg.responses.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {msg.responses.map((response) => (
+                            <div key={response.id} className="p-3 bg-blue-50 border-l-4 border-blue-900 rounded">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-semibold text-blue-900">
+                                  {response.respondedBy.name} (Admin)
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(response.createdAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              </div>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{response.message}</p>
+                            </div>
+                          ))}
                         </div>
                       )}
+                      
                       <p className="text-xs text-gray-500 mt-2">
-                        {new Date(msg.createdAt).toLocaleString()}
+                        Sent: {new Date(msg.createdAt).toLocaleString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </p>
                     </div>
                   ))}

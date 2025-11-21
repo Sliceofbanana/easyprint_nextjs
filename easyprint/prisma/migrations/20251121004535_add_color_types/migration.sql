@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ColorType" ADD VALUE 'PARTIAL_COLOR';

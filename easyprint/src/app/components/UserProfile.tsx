@@ -1,74 +1,57 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Building2, Users, Phone, Save, Loader2 } from 'lucide-react';
-import { useToast } from './ui/Use-Toast';
+import { User, Save, Loader2, ArrowLeft } from 'lucide-react';
+import { useToast } from '../components/ui/Use-Toast';
+import Link from 'next/link';
 
-interface ProfileData {
-  name: string;
-  email: string;
-  school: string;
-  organization: string;
-  phone: string;
-}
-
-const UserProfile = () => {
+export default function ProfilePage() {
+  const { data: session, update } = useSession();
   const router = useRouter();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [profile, setProfile] = useState<ProfileData>({
-    name: '',
-    email: '',
-    school: '',
-    organization: '',
-    phone: '',
-  });
+  
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
+  // ✅ Initialize form with session data
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const response = await fetch('/api/user/profile');
-        if (!response.ok) throw new Error('Failed to fetch profile');
-        
-        const data = await response.json();
-        setProfile({
-          name: data.name || '',
-          email: data.email || '',
-          school: data.school || '',
-          organization: data.organization || '',
-          phone: data.phone || '',
-        });
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to load profile',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (session?.user) {
+      setName(session.user.name || '');
+      setEmail(session.user.email || '');
+    }
+  }, [session]);
 
-    fetchProfile();
-  }, [toast]);
+  // ✅ Redirect if not authenticated
+  useEffect(() => {
+    if (!session && !isLoading) {
+      router.push('/login');
+    }
+  }, [session, isLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ✅ Handle profile update
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    
+    if (!name.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Name cannot be empty',
+        variant: 'destructive',
+      });
+      return;
+    }
 
+    setIsSaving(true);
     try {
       const response = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: profile.name,
-          school: profile.school,
-          organization: profile.organization || null,
-          phone: profile.phone || null,
-        }),
+        body: JSON.stringify({ name: name.trim() }),
       });
 
       if (!response.ok) {
@@ -76,27 +59,43 @@ const UserProfile = () => {
         throw new Error(error.error || 'Failed to update profile');
       }
 
-      toast({
-        title: 'Profile Updated',
-        description: 'Your profile has been saved successfully.',
+      const data = await response.json();
+
+      // ✅ Trigger immediate session refresh
+      await update({
+        ...session,
+        user: {
+          ...session?.user,
+          name: data.user.name,
+        },
       });
-    } catch (error) {
+
       toast({
-        title: 'Update Failed',
+        title: 'Profile Updated! ✅',
+        description: 'Your profile has been updated successfully',
+      });
+
+      // ✅ Optional: Trigger custom event for other components
+      window.dispatchEvent(new Event('profileUpdated'));
+
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to update profile',
         variant: 'destructive',
       });
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  if (loading) {
+  if (!session) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
+          <Loader2 className="w-12 h-12 animate-spin text-blue-900 mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -105,122 +104,86 @@ const UserProfile = () => {
   return (
     <div className="bg-gray-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        {/* Back Button */}
+        <Link 
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-blue-900 hover:text-blue-700 mb-6 font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Dashboard
+        </Link>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-xl shadow-lg border p-8"
+        >
           {/* Header */}
-          <div className="flex items-center mb-8">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Dashboard</span>
-            </button>
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+              <User className="w-8 h-8 text-blue-900" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Profile Settings</h1>
+              <p className="text-gray-600">Manage your account information</p>
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-16 h-16 bg-blue-900 rounded-full flex items-center justify-center">
-                <User className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
-                <p className="text-gray-600">Manage your account information</p>
+          {/* Form */}
+          <form onSubmit={handleUpdateProfile} className="space-y-6">
+            {/* Name Field */}
+            <div>
+              <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                placeholder="Enter your full name"
+                required
+              />
+            </div>
+
+            {/* Email Field (Read-only) */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                Email Address
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                disabled
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+              />
+              <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+            </div>
+
+            {/* Account Type */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Account Type
+              </label>
+              <div className="px-4 py-3 border border-gray-300 rounded-lg bg-gray-50">
+                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                  {session.user.role || 'CUSTOMER'}
+                </span>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Full Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={profile.name}
-                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent"
-                    placeholder="Enter your full name"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Email (Read-only) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={profile.email}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-                  disabled
-                />
-                <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
-              </div>
-
-              {/* School/Company */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  School/Company <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={profile.school}
-                    onChange={(e) => setProfile({ ...profile, school: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent"
-                    placeholder="e.g., University of San Carlos"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Organization (Optional) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Organization/Department <span className="text-gray-400 text-xs">(Optional)</span>
-                </label>
-                <div className="relative">
-                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={profile.organization}
-                    onChange={(e) => setProfile({ ...profile, organization: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent"
-                    placeholder="e.g., Computer Science Department"
-                  />
-                </div>
-              </div>
-
-              {/* Phone (Optional) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number <span className="text-gray-400 text-xs">(Optional)</span>
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="tel"
-                    value={profile.phone}
-                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent"
-                    placeholder="09XX XXX XXXX"
-                  />
-                </div>
-              </div>
-
-              {/* Save Button */}
-              <div className="pt-4 border-t">
+            {/* Divider */}
+            <div className="border-t pt-6">
+              {/* Action Buttons */}
+              <div className="flex gap-4">
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="w-full sm:w-auto px-6 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSaving || name === session.user.name}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
-                  {saving ? (
+                  {isSaving ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Saving...
@@ -232,13 +195,61 @@ const UserProfile = () => {
                     </>
                   )}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setName(session.user.name || '');
+                    toast({
+                      title: 'Changes Discarded',
+                      description: 'Your changes have been reset',
+                    });
+                  }}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                >
+                  Reset
+                </button>
               </div>
-            </form>
+            </div>
+          </form>
+
+          {/* Info Box */}
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-900">
+              💡 <strong>Tip:</strong> Your profile name will be updated across all your orders and account information.
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Account Info Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mt-6 bg-white rounded-xl shadow-lg border p-6"
+        >
+          <h2 className="text-xl font-semibold mb-4">Account Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-gray-500 mb-1">Member Since</p>
+              <p className="font-semibold">
+                {(() => {
+                  const createdAt = (session.user as any)?.createdAt;
+                  return new Date(createdAt ?? Date.now()).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  });
+                })()}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-500 mb-1">Account Status</p>
+              <p className="font-semibold text-green-600">Active</p>
+            </div>
           </div>
         </motion.div>
       </div>
     </div>
   );
-};
-
-export default UserProfile;
+}

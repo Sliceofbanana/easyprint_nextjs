@@ -7,56 +7,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String          @id @default(uuid())
-  email         String          @unique
-  name          String?
-  role          Role            @default(USER)
-  photoURL      String?
-  school        String?
-  organization  String?
-  phone         String?
-  emailVerified Boolean         @default(false)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  password      String
-  orders        Order[]
-  messages      Message[]
-  notifications Notification[]
-
-  @@map("users")
-}
-
 model Order {
-  id            String       @id @default(uuid())
-  userId        String
-  orderNumber   String       @unique @default(cuid())
-  customerName  String
-  customerEmail String
-  customerPhone String?
-  serviceType   ServiceType
-  paperSize     PaperSize
-  colorType     ColorType
-  copies        Int          @default(1)
-  pages         Int          @default(1)
-  bindingType   BindingType?
-  fileUrl       String?
-  fileName      String?
-  pricePerPage  Float
-  totalPrice    Float
-  status        OrderStatus  @default(PENDING)
-  notes         String?
-  adminNotes    String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  completedAt   DateTime?
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(uuid())
+  userId              String
+  orderNumber         String       @unique @default(cuid())
+  customerName        String
+  customerEmail       String
+  customerPhone       String?
+  serviceType         ServiceType
+  paperSize           PaperSize
+  colorType           ColorType
+  copies              Int          @default(1)
+  pages               Int          @default(1)
+  bindingType         BindingType?
+  fileUrl             String?
+  fileName            String?
+  pricePerPage        Float
+  totalPrice          Float
+  status              OrderStatus  @default(PENDING)
+  notes               String?
+  adminNotes          String?
+  paymentProofUrl     String?
+  paymentReference    String?
+  paymentVerifiedAt   DateTime?
+  paymentVerifiedBy   String?
+  
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  completedAt         DateTime?
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([orderNumber])
   @@index([status])
+  @@index([createdAt])
 }
 
 // ✅ NEW: Product Management
@@ -92,21 +74,57 @@ model Inventory {
   @@map("inventory")
 }
 
-// ✅ NEW: Customer Messages/Inquiries
-model Message {
-  id        String        @id @default(uuid())
-  userId    String
-  subject   String
-  message   String        @db.Text
-  status    MessageStatus @default(PENDING)
-  response  String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ✅ Add these models to your schema.prisma
 
+model Message {
+  id        String   @id @default(cuid())
+  subject   String
+  message   String   @db.Text
+  status    String   @default("PENDING") // PENDING, IN_PROGRESS, RESOLVED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  userId    String
+  user      User     @relation("UserMessages", fields: [userId], references: [id], onDelete: Cascade)
+  
+  responses MessageResponse[]
+  
   @@index([userId])
   @@index([status])
-  @@map("messages")
+}
+
+model MessageResponse {
+  id        String   @id @default(cuid())
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+  
+  messageId     String
+  messageRef    Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  respondedById String
+  respondedBy   User   @relation("UserResponses", fields: [respondedById], references: [id])
+  
+  @@index([messageId])
+  @@index([respondedById])
+}
+
+// ✅ Update User model to include message relations
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String?
+  role          String    @default("CUSTOMER")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  orders        Order[]
+  messages      Message[]  @relation("UserMessages")        // ✅ Add this
+  responses     MessageResponse[] @relation("UserResponses") // ✅ Add this
+  notifications Notification[]
+  
+  @@index([email])
+  @@index([role])
 }
 
 model Notification {
@@ -168,6 +186,7 @@ enum PaperSize {
 
 enum ColorType {
   BLACK_AND_WHITE
+  PARTIAL_COLOR
   COLOR
   MIX
 }
