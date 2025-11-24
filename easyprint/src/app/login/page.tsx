@@ -5,6 +5,7 @@ import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 const LoginPage = () => {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
@@ -36,6 +37,7 @@ const LoginPage = () => {
     toast({
       title: 'Welcome Back!',
       description: 'Redirecting to your dashboard...',
+      variant: 'success',
     });
 
     router.push('/dashboard');
@@ -52,9 +54,18 @@ const LoginPage = () => {
           className="bg-white rounded-2xl shadow-xl p-8"
         >
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <User className="w-8 h-8 text-white" />
+            {/* ✅ FIXED: Logo section */}
+            <div className="w-16 h-16 overflow-hidden mx-auto mb-4">
+              <Image
+                src="/images/colored.webp"
+                alt="MQ Printing"
+                width={64}
+                height={64}
+                className="object-cover"
+                priority
+              />
             </div>
+            
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               Sign in to Your Account
             </h1>
