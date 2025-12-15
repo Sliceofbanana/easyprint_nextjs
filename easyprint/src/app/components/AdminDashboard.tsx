@@ -27,6 +27,9 @@ import {
   RefreshCw,
   Send,
   Clock,
+  Users as UsersIcon, 
+  Calendar, 
+  ShoppingBag,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -45,6 +48,17 @@ interface Staff {
   email: string;
   role: string;
   createdAt: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  _count: {
+    orders: number;
+  };
 }
 
 interface Order {
@@ -134,14 +148,14 @@ interface Notification {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'notifications' | 'messages' | 'products' | 'staff' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'notifications' | 'messages' | 'products' | 'staff' | 'users' | 'settings'>('overview');
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [reportPeriod, setReportPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
-  const [notifications, setNotifications] = useState<Notification[]>([]); // ✅ Fixed type
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [showAddInventory, setShowAddInventory] = useState(false);
@@ -161,7 +175,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [sendingResponse, setSendingResponse] = useState(false);
   const [lastMessageCount, setLastMessageCount] = useState(0);
   const [messageFilter, setMessageFilter] = useState<'all' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('all');
-
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  
   // ✅ Memoized fetch messages function
   const fetchMessages = useCallback(async (showToast = false) => {
     try {
@@ -176,7 +192,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           toast({
             title: '📬 New Customer Message!',
             description: `${newCount} new message${newCount > 1 ? 's' : ''} received`,
-            variant: 'default',
+            variant: 'info',
           });
           
           // ✅ Play notification sound
@@ -209,7 +225,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           toast({
             title: '🔔 New Low Stock Alert!',
             description: `${newCount} new item${newCount > 1 ? 's' : ''} reported as low stock`,
-            variant: 'default',
+            variant: 'warning',
           });
           
           if (typeof window !== 'undefined') {
@@ -324,6 +340,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       toast({
         title: 'Status Updated',
         description: `Message marked as ${newStatus.toLowerCase().replace('_', ' ')}`,
+        variant: 'info',
       });
     } catch (error) {
       toast({
@@ -375,6 +392,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         toast({
           title: 'Response Sent',
           description: 'Your response has been sent to the customer',
+          variant: 'success',
         });
       } catch (error) {
         toast({
@@ -393,6 +411,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     toast({
       title: 'Refreshed',
       description: 'Notifications updated successfully',
+      variant: 'success',
     });
   };
 

@@ -73,6 +73,7 @@ export default function ProfilePage() {
       toast({
         title: 'Profile Updated! ✅',
         description: 'Your profile has been updated successfully',
+        variant: 'success',
       });
 
       // ✅ Optional: Trigger custom event for other components
@@ -203,6 +204,7 @@ export default function ProfilePage() {
                     toast({
                       title: 'Changes Discarded',
                       description: 'Your changes have been reset',
+                      variant: 'success',
                     });
                   }}
                   className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"

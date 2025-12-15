@@ -23,7 +23,7 @@ interface Message {
   status: string;
   createdAt: string;
   updatedAt: string;
-  responses?: MessageResponse[]; // ✅ Changed from response to responses
+  responses?: MessageResponse[];
 }
 
 const UserSupport = () => {
@@ -83,7 +83,7 @@ const UserSupport = () => {
       toast({
         title: 'Incomplete Form',
         description: 'Please fill in both subject and message',
-        variant: 'destructive',
+        variant: 'warning',
       });
       return;
     }
@@ -116,6 +116,7 @@ const UserSupport = () => {
       toast({
         title: 'Message Sent! 📧',
         description: 'Your message has been sent to support. We will respond soon.',
+        variant: 'success',
       });
 
       setNewMessage({ subject: '', message: '' });

@@ -528,6 +528,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       toast({
         title: 'Order Placed! 🎉',
         description: `Your ${serviceType === 'RUSH_ID' ? 'Rush ID' : 'printing'} order has been submitted successfully.`,
+        variant: 'success',
       });
 
       setCurrentStep(7);
@@ -607,6 +608,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
           toast({
             title: 'Upload Successful',
             description: 'Payment screenshot uploaded successfully',
+            variant: 'success',
           });
         } else {
           throw new Error('Upload failed');

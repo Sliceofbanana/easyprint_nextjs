@@ -97,6 +97,7 @@ Please restock as soon as possible.`,
       toast({
         title: 'Alert Sent',
         description: `Low stock alert for ${formData.itemName} has been sent to admin`,
+        variant: 'success',
       });
 
       // Reset form
