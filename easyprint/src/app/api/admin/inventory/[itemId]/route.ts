@@ -21,7 +21,16 @@ export async function PATCH(
     const body = await req.json();
     const { itemName, category, quantity, unit, minStockLevel } = body;
 
-    const updateData: any = {};
+    // ✅ Fixed: Properly typed updateData
+    const updateData: {
+      itemName?: string;
+      category?: string;
+      quantity?: number;
+      unit?: string;
+      minStockLevel?: number;
+      lastRestocked?: Date;
+    } = {};
+    
     if (itemName) updateData.itemName = itemName;
     if (category) updateData.category = category;
     if (quantity !== undefined) {

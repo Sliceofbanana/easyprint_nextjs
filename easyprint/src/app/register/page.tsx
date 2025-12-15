@@ -113,6 +113,7 @@ export default function RegisterPage() {
       toast({
         title: 'Account Created! 🎉',
         description: 'Signing you in...',
+        variant: 'success',
       });
 
       // Auto sign-in after registration
@@ -129,6 +130,7 @@ export default function RegisterPage() {
       toast({
         title: 'Welcome! 👋',
         description: 'Redirecting to your dashboard...',
+        variant: 'success',
       });
 
       // Redirect to dashboard

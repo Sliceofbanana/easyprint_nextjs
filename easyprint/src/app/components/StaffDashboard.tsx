@@ -212,6 +212,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
       toast({
         title: 'Downloading',
         description: 'Starting download...',
+        variant: 'info'
       });
 
       const encodedUrl = encodeURIComponent(order.fileUrl);
@@ -235,6 +236,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
       toast({
         title: 'Downloaded',
         description: `${link.download} downloaded successfully`,
+        variant: 'success',
       });
     } catch (error) {
       console.error('Download error:', error);
@@ -685,6 +687,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                                 toast({
                                   title: 'Copied!',
                                   description: 'Reference number copied to clipboard',
+                                  variant: 'success',
                                 });
                               }}
                               className="p-1.5 hover:bg-gray-100 rounded transition-colors"
@@ -762,6 +765,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                               toast({
                                 title: 'Payment Verified',
                                 description: 'Order moved to processing',
+                                variant: 'success',
                               });
                             }}
                             className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center justify-center gap-2"
