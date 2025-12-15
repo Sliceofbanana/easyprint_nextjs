@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import UserDashboard from '../components/UserDashboard';
-import Navbar from '../components/navbar';
+import Navbar from '../components/Navbar';
 
 export default function UserPage() {
   const router = useRouter();

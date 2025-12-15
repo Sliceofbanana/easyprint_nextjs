@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import AdminDashboard from '../components/AdminDashboard';
-import Navbar from '../components/navbar';
+import Navbar from '../components/Navbar';
+import { Loader2 } from 'lucide-react';
 
 export default function AdminPage() {
   const router = useRouter();
