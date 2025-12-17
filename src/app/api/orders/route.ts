@@ -74,12 +74,9 @@ export async function POST(req: NextRequest) {
     const user = session.user as { id: string; email: string };
     console.log('✅ User authenticated:', user.email);
 
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      console.error('Upload error:', errorMessage);
-      return NextResponse.json({ error: errorMessage }, { status: 500 });
-    }
-}
+    const body = await req.json();
+    console.log('📥 Received order data:', JSON.stringify(body, null, 2));
+
     const {
       customerName,
       customerEmail,
