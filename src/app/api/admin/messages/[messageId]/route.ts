@@ -3,10 +3,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../auth/[...nextauth]/route';
 import prisma from '../../../../../lib/prisma';
 
-// GET single message
+// ✅ GET single message
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { messageId: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,19 +14,34 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as { role: string; id: string };
+    const user = session.user as { role: string };
     if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { messageId } = await params;
+
     const message = await prisma.message.findUnique({
-      where: { id: params.messageId },
+      where: { id: messageId },
       include: {
         user: {
           select: {
             id: true,
             name: true,
             email: true,
+          },
+        },
+        responses: {
+          include: {
+            respondedBy: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
           },
         },
       },
@@ -43,10 +58,10 @@ export async function GET(
   }
 }
 
-// PATCH - Update message status
+// ✅ PATCH - Update message status
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { messageId: string } }
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -59,25 +74,45 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { messageId } = await params;
     const body = await req.json();
     const { status } = body;
 
-    if (!status || !['PENDING', 'REPLIED', 'RESOLVED'].includes(status)) {
+    if (!status || !['PENDING', 'IN_PROGRESS', 'RESOLVED'].includes(status)) {
       return NextResponse.json(
-        { error: 'Invalid status. Must be PENDING, REPLIED, or RESOLVED' },
+        { error: 'Invalid status' },
         { status: 400 }
       );
     }
 
     const message = await prisma.message.update({
-      where: { id: params.messageId },
+      where: { id: messageId },
       data: { status },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        responses: {
+          include: {
+            respondedBy: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
     });
 
-    return NextResponse.json({
-      success: true,
-      message,
-    });
+    return NextResponse.json(message);
   } catch (error) {
     console.error('Error updating message:', error);
     return NextResponse.json(
@@ -87,10 +122,10 @@ export async function PATCH(
   }
 }
 
-// DELETE - Delete message
+// ✅ DELETE - Delete message
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { messageId: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -103,8 +138,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { messageId } = await params;
+
     await prisma.message.delete({
-      where: { id: params.messageId },
+      where: { id: messageId },
     });
 
     return NextResponse.json({

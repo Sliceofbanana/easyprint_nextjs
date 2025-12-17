@@ -4,7 +4,8 @@ import { authOptions } from '../auth/[...nextauth]/route';
 import prisma from '../../../lib/prisma';
 
 // ✅ GET notifications (admin only)
-export async function GET(req: NextRequest) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(_req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -14,12 +15,10 @@ export async function GET(req: NextRequest) {
 
     const user = session.user as { role: string; id: string };
 
-    // Only admin and staff can view notifications
     if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Admin sees all notifications, staff sees only their own
     const notifications = await prisma.notification.findMany({
       where: user.role === 'ADMIN' ? {} : { userId: user.id },
       include: {
@@ -51,7 +50,6 @@ export async function POST(req: NextRequest) {
 
     const user = session.user as { id: string; role: string };
 
-    // Only staff can create notifications
     if (user.role !== 'STAFF') {
       return NextResponse.json({ error: 'Forbidden - Staff only' }, { status: 403 });
     }

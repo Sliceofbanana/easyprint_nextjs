@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
+import prisma from '../../../lib/prisma';
 import bcrypt from 'bcryptjs';
 
 // ✅ GET: Fetch all staff members (Admin only)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,7 +14,6 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: { role: true },
@@ -23,7 +23,6 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch all staff and admin users
     const staff = await prisma.user.findMany({
       where: {
         role: {
@@ -61,7 +60,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: { role: true },
@@ -73,7 +71,6 @@ export async function POST(req: NextRequest) {
 
     const { name, email, password, role } = await req.json();
 
-    // Validate input
     if (!name?.trim() || !email?.trim() || !password?.trim()) {
       return NextResponse.json(
         { error: 'Name, email, and password are required' },
@@ -95,7 +92,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if email already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
     });
@@ -107,10 +103,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create staff member
     const newStaff = await prisma.user.create({
       data: {
         name: name.trim(),

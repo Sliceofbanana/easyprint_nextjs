@@ -11,7 +11,6 @@ import {
   Lock, 
   ArrowRight, 
   Loader2, 
-  CheckCircle,
   Eye,
   EyeOff,
   Printer

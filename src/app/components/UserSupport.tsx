@@ -41,7 +41,7 @@ const UserSupport = () => {
   const fetchMessages = useCallback(async () => {
     try {
       console.log('📥 Fetching messages...');
-      const response = await fetch('/api/admin/message'); 
+      const response = await fetch('/api/messages'); 
       
       if (!response.ok) {
         const errorData = await response.json();

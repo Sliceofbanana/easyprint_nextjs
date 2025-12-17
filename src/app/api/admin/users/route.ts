@@ -3,11 +3,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    // ✅ Only admins can view users
     if (!session?.user || session.user.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized - Admin access required' },
@@ -15,7 +15,6 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    // ✅ Fetch all users with basic info
     const users = await prisma.user.findMany({
       select: {
         id: true,

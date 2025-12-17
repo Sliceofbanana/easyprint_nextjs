@@ -17,11 +17,9 @@ import {
   Edit,
   Trash2,
   Eye,
-  Calendar,
   X,
   CheckCircle,
   Save,
-  RefreshCw,
   Send,
   Clock,
 } from 'lucide-react';
@@ -109,13 +107,6 @@ interface MessageResponse {
     name: string;
     email: string;
   };
-}
-
-interface SalesReport {
-  period: string;
-  totalOrders: number;
-  totalRevenue: number;
-  averageOrderValue: number;
 }
 
 interface Notification {
