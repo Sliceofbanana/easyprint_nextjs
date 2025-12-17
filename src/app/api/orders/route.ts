@@ -4,7 +4,7 @@ import { authOptions } from '../auth/[...nextauth]/route';
 import prisma from '../../../lib/prisma';
 
 // ✅ GET all orders
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -170,8 +170,9 @@ export async function POST(req: NextRequest) {
         createdAt: order.createdAt.toISOString(),
       },
     });
-  } catch (error: any) {
-    console.error('❌ Error creating order:', error);
+  } catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  console.error('Error creating order:', errorMessage);
     
     if (error.code) {
       console.error('Prisma error code:', error.code);

@@ -5,21 +5,18 @@ import { useToast } from '../components/ui/Use-Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, 
-  Package, 
-  FileText, 
+  Package,  
   TrendingUp, 
   AlertTriangle,
   MessageSquare,
   Download,
   DollarSign,
-  Box,
   Settings,
   Bell,
   Plus,
   Edit,
   Trash2,
   Eye,
-  ChevronDown,
   Calendar,
   X,
   CheckCircle,
@@ -27,9 +24,6 @@ import {
   RefreshCw,
   Send,
   Clock,
-  Users as UsersIcon, 
-  Calendar, 
-  ShoppingBag,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../auth/[...nextauth]/route';
-import prisma from '../../../../lib/prisma';
+import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
-export async function PATCH(
+export async function PUT(
   req: NextRequest,
-  { params }: { params: { staffId: string } }
+  { params }: { params: Promise<{ staffId: string }> } // ✅ Changed to Promise
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,42 +16,55 @@ export async function PATCH(
 
     const user = session.user as { role: string };
     if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Forbidden - Admin only' },
+        { status: 403 }
+      );
     }
+
+    // ✅ Await params
+    const { staffId } = await params;
 
     const body = await req.json();
     const { name, email, role, password } = body;
 
-    const updateData: any = {};
+    const updateData: {
+      name?: string;
+      email?: string;
+      role?: string;
+      password?: string;
+    } = {};
+
     if (name) updateData.name = name;
-    if (email) updateData.email = email;
-    if (role) updateData.role = role.toUpperCase();
+    if (email) updateData.email = email.toLowerCase();
+    if (role) updateData.role = role;
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: params.staffId },
+    const updatedStaff = await prisma.user.update({
+      where: { id: staffId },
       data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        updatedAt: true,
-      },
     });
 
-    return NextResponse.json({ success: true, user: updatedUser });
+    return NextResponse.json({
+      id: updatedStaff.id,
+      name: updatedStaff.name,
+      email: updatedStaff.email,
+      role: updatedStaff.role,
+    });
   } catch (error) {
     console.error('Error updating staff:', error);
-    return NextResponse.json({ error: 'Failed to update staff member' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to update staff member' },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { staffId: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ staffId: string }> } // ✅ Changed to Promise
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -61,16 +74,28 @@ export async function DELETE(
 
     const user = session.user as { role: string };
     if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Forbidden - Admin only' },
+        { status: 403 }
+      );
     }
 
+    // ✅ Await params
+    const { staffId } = await params;
+
     await prisma.user.delete({
-      where: { id: params.staffId },
+      where: { id: staffId },
     });
 
-    return NextResponse.json({ success: true, message: 'Staff member deleted successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Staff member deleted successfully',
+    });
   } catch (error) {
     console.error('Error deleting staff:', error);
-    return NextResponse.json({ error: 'Failed to delete staff member' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to delete staff member' },
+      { status: 500 }
+    );
   }
 }

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import prisma from '../../../../lib/prisma';
+import prisma from '@/lib/prisma';
 
-// ✅ GET single order by ID
 export async function GET(
   req: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> } // ✅ Changed to Promise
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,46 +13,45 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { orderId } = params;
+    // ✅ Await params
+    const { orderId } = await params;
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      id: order.id,
-      orderNumber: `MQ_${order.orderNumber}`,
-      customerName: order.customerName,
-      customerEmail: order.customerEmail,
-      customerPhone: order.customerPhone,
-      totalPrice: order.totalPrice,
-      status: order.status,
-      createdAt: order.createdAt.toISOString(),
-      updatedAt: order.updatedAt.toISOString(),
-      fileName: order.fileName,
-      fileUrl: order.fileUrl,
-      paperSize: order.paperSize,
-      colorType: order.colorType,
-      copies: order.copies,
-      pages: order.pages,
-      bindingType: order.bindingType,
-      notes: order.notes,
-      adminNotes: order.adminNotes,
-    });
+    // Check authorization
+    const user = session.user as { id: string; role: string };
+    if (order.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'STAFF') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    return NextResponse.json(order);
   } catch (error) {
     console.error('Error fetching order:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch order' },
+      { status: 500 }
+    );
   }
 }
 
-// ✅ PATCH - Update order status (staff/admin only)
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> } // ✅ Changed to Promise
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -62,33 +60,33 @@ export async function PATCH(
     }
 
     const user = session.user as { role: string };
-
-    if (user.role !== 'STAFF' && user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
+      return NextResponse.json(
+        { error: 'Forbidden - Staff/Admin only' },
+        { status: 403 }
+      );
     }
+
+    // ✅ Await params
+    const { orderId } = await params;
 
     const body = await req.json();
-    const { status, adminNotes } = body;
-
-    const validStatuses = ['PENDING', 'PROCESSING', 'READY', 'ON_DELIVERY', 'COMPLETED', 'CANCELLED'];
-    if (status && !validStatuses.includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-
-    const { orderId } = params;
+    const { status } = body;
 
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
-        ...(status && { status }),
-        ...(adminNotes && { adminNotes }),
-        updatedAt: new Date(),
+        status,
+        ...(status === 'COMPLETED' && { completedAt: new Date() }),
       },
     });
 
     return NextResponse.json(updatedOrder);
   } catch (error) {
     console.error('Error updating order:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to update order' },
+      { status: 500 }
+    );
   }
 }

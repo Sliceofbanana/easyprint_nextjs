@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import OrderSystem from '../components/OrderSystem';
-import Navbar from '../components/navbar';
+import Navbar from '../components/Navbar';
 
 export default function OrderPage() {
   const router = useRouter();

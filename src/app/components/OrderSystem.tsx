@@ -35,7 +35,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
   const {
     files,
     uploadingFiles,
-    uploadFile,
     uploadMultipleFiles,
     removeFile,
     isUploading,
@@ -438,7 +437,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         adminNotes: adminNotes,
         paymentProofUrl: paymentProof.url,
         paymentReference: paymentProof.ref,
-        adminNotes: `Service: ${serviceType}\nDelivery: ${orderDetails.deliveryType}\nLocation: ${orderDetails.deliveryLocation || 'N/A'}`,
       };
 
       let orderPayload;

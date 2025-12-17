@@ -15,8 +15,6 @@ import {
   Download,
   Receipt,
   Settings,
-  BarChart3,
-  ImageIcon,
   User,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
