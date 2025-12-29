@@ -45,7 +45,6 @@ export const useCloudinary = ({
 
         const xhr = new XMLHttpRequest();
 
-        // Track upload progress
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             const percentComplete = Math.round((e.loaded / e.total) * 100);
@@ -54,7 +53,6 @@ export const useCloudinary = ({
           }
         });
 
-        // Handle completion
         xhr.addEventListener('load', () => {
           if (xhr.status === 200) {
             try {
@@ -72,7 +70,7 @@ export const useCloudinary = ({
               setProgress(100);
               onSuccess?.(result);
               resolve(result);
-            } catch (error) {
+            } catch (_error) {
               const err = new Error('Failed to parse response');
               setError(err);
               setIsUploading(false);
@@ -88,7 +86,6 @@ export const useCloudinary = ({
           }
         });
 
-        // Handle errors
         xhr.addEventListener('error', () => {
           const err = new Error('Network error during upload');
           setError(err);
@@ -105,7 +102,6 @@ export const useCloudinary = ({
           reject(err);
         });
 
-        // Send request
         xhr.open(
           'POST',
           `https://api.cloudinary.com/v1_1/${cloudName}/upload`

@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { FileText, CheckCircle, Loader2, X, Eye } from 'lucide-react';
+import Image from 'next/image';
 
 interface FileUploadProgressProps {
   fileName: string;
@@ -33,7 +34,6 @@ const FileUploadProgress: React.FC<FileUploadProgressProps> = ({
   };
 
   const isImage = fileType?.startsWith('image/');
-  const isPDF = fileType === 'application/pdf';
 
   return (
     <motion.div
@@ -43,14 +43,16 @@ const FileUploadProgress: React.FC<FileUploadProgressProps> = ({
       className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
     >
       <div className="flex items-start gap-3">
-        {/* File Icon/Preview */}
         <div className="flex-shrink-0">
           {isImage && previewUrl ? (
-            <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200">
-              <img
+            <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 relative">
+              {/* ✅ FIXED: Use Next.js Image component */}
+              <Image
                 src={previewUrl}
                 alt={fileName}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
+                unoptimized // For external Cloudinary URLs
               />
             </div>
           ) : (
@@ -60,7 +62,6 @@ const FileUploadProgress: React.FC<FileUploadProgressProps> = ({
           )}
         </div>
 
-        {/* File Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
             <div className="flex-1 min-w-0">
@@ -73,7 +74,6 @@ const FileUploadProgress: React.FC<FileUploadProgressProps> = ({
               </p>
             </div>
 
-            {/* Status Icon */}
             <div className="flex items-center gap-1">
               {status === 'uploading' && (
                 <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
@@ -107,7 +107,6 @@ const FileUploadProgress: React.FC<FileUploadProgressProps> = ({
             </div>
           </div>
 
-          {/* Progress Bar */}
           {status === 'uploading' && (
             <div className="mt-2">
               <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
@@ -125,14 +124,12 @@ const FileUploadProgress: React.FC<FileUploadProgressProps> = ({
             </div>
           )}
 
-          {/* Success Message */}
           {status === 'success' && (
             <p className="text-xs text-green-600 mt-1">
               ✓ Upload complete
             </p>
           )}
 
-          {/* Error Message */}
           {status === 'error' && (
             <p className="text-xs text-red-600 mt-1">
               ✗ Upload failed

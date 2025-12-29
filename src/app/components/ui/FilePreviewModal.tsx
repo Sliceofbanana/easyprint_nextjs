@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, ExternalLink, FileText, Loader2, Eye, Trash2 } from 'lucide-react';
+import { X, Download, ExternalLink, FileText, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 
 interface FilePreviewModalProps {
   isOpen: boolean;
@@ -22,7 +23,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Determine file type from URL or fileType prop
   const isImage = fileType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileUrl);
   const isPDF = fileType === 'application/pdf' || fileUrl.toLowerCase().endsWith('.pdf');
 
@@ -50,7 +50,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -59,14 +58,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
           />
 
-          {/* Modal */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
             className="fixed inset-4 md:inset-10 bg-white rounded-2xl shadow-2xl z-50 flex flex-col"
           >
-            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b">
               <div className="flex-1 min-w-0 mr-4">
                 <h3 className="text-lg font-semibold text-gray-900 truncate">
@@ -103,7 +101,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               </div>
             </div>
 
-            {/* Preview Content */}
             <div className="flex-1 overflow-auto p-4 bg-gray-50">
               {error ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
@@ -121,16 +118,21 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   {loading && (
                     <Loader2 className="w-12 h-12 animate-spin text-blue-900 absolute" />
                   )}
-                  <img
-                    src={fileUrl}
-                    alt={fileName}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-                    onLoad={() => setLoading(false)}
-                    onError={() => {
-                      setLoading(false);
-                      setError('Failed to load image');
-                    }}
-                  />
+                  {/* ✅ FIXED: Use Next.js Image component */}
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <Image
+                      src={fileUrl}
+                      alt={fileName}
+                      fill
+                      className="object-contain rounded-lg"
+                      onLoad={() => setLoading(false)}
+                      onError={() => {
+                        setLoading(false);
+                        setError('Failed to load image');
+                      }}
+                      unoptimized // For external Cloudinary URLs
+                    />
+                  </div>
                 </div>
               ) : isPDF ? (
                 <>
