@@ -70,7 +70,8 @@ export const useCloudinary = ({
               setProgress(100);
               onSuccess?.(result);
               resolve(result);
-            } catch (_error) {
+            } catch {
+              // ✅ FIXED: Removed unused _error parameter
               const err = new Error('Failed to parse response');
               setError(err);
               setIsUploading(false);

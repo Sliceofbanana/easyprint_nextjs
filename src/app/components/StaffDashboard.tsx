@@ -20,6 +20,7 @@ import {
 import { useToast } from '../components/ui/Use-Toast';
 import { AlertTriangle, Bell } from 'lucide-react';
 import LowStockModal from './ui/LowStockModal';
+import Image from 'next/image';
 
 // --- Types ---
 interface StaffDashboardProps {
@@ -303,7 +304,22 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
 
     printWindow.document.write(printContent);
     printWindow.document.close();
+    printWindow.focus();
+      
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+
+    } catch (err) {  // ✅ FIXED: Rename to 'err' and use it
+      console.error('Print error:', err);
+      toast({
+        title: 'Print Failed',
+        description: err instanceof Error ? err.message : 'Failed to generate print preview',
+        variant: 'destructive',
+      });
+    }
   };
+
 
   const extractPaymentInfo = (adminNotes?: string) => {
     if (!adminNotes) return null;
@@ -540,7 +556,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as 'orders' | 'settings')}
                 className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'text-blue-900 border-b-2 border-blue-900 bg-blue-50'
@@ -710,6 +726,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                                 src={paymentInfo.screenshotUrl}
                                 alt="Payment Proof"
                                 className="w-full h-48 object-contain rounded-lg border-2 border-gray-200 cursor-pointer hover:border-orange-400 transition-all"
+                                unoptimized
                                 onClick={() => window.open(paymentInfo.screenshotUrl || '', '_blank')}
                                 onError={(e) => {
                                   console.error('❌ Failed to load payment screenshot:', paymentInfo.screenshotUrl);

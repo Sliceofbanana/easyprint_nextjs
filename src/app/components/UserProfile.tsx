@@ -15,7 +15,6 @@ export default function ProfilePage() {
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // ✅ Initialize form with session data
