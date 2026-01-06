@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,6 +21,7 @@ import { useToast } from './ui/Use-Toast';
 import { useFileUpload } from '../../hooks/useFileUpload';
 import { useOrderForm } from '../../hooks/useOrderForm';
 import FilePreviewModal from './ui/FilePreviewModal';
+import Image from 'next/image';
 
 interface OrderSystemProps {
   onBack?: () => void;
@@ -102,24 +103,24 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     "University of the Philippines Cebu",
   ];
 
-  const BINDING_PRICES: Record<string, (pages: number) => number> = {
-    "book-soft": (pages) => (pages <= 150 ? 300 : pages <= 300 ? 350 : 400),
-    "book-hard": (pages) => (pages <= 150 ? 400 : pages <= 300 ? 450 : 500),
-    "wire-soft": (pages) => (pages <= 50 ? 60 : pages <= 100 ? 80 : 80),
-    "wire-hard": (pages) => (pages <= 50 ? 110 : pages <= 100 ? 130 : 130),
-  };
+  const BINDING_PRICES = useMemo(() => ({
+    "book-soft": (pages: number) => (pages <= 150 ? 300 : pages <= 300 ? 350 : 400),
+    "book-hard": (pages: number) => (pages <= 150 ? 400 : pages <= 300 ? 450 : 500),
+    "wire-soft": (pages: number) => (pages <= 50 ? 60 : pages <= 100 ? 80 : 80),
+    "wire-hard": (pages: number) => (pages <= 50 ? 110 : pages <= 100 ? 130 : 130),
+  }), []);
 
-  const RUSH_ID_PACKAGES = [
+  const RUSH_ID_PACKAGES = useMemo(() => [
     { id: '1x1-basic', name: '1x1 Basic ID', copies: 4, price: 50, turnaround: '30 minutes' },
     { id: '1x1-rush', name: '1x1 Rush ID', copies: 4, price: 70, turnaround: '15 minutes' },
     { id: '2x2-basic', name: '2x2 Basic ID', copies: 4, price: 60, turnaround: '30 minutes' },
     { id: '2x2-rush', name: '2x2 Rush ID', copies: 4, price: 80, turnaround: '15 minutes' },
     { id: 'passport-basic', name: 'Passport Size Basic', copies: 4, price: 70, turnaround: '30 minutes' },
     { id: 'passport-rush', name: 'Passport Size Rush', copies: 4, price: 90, turnaround: '15 minutes' },
-  ];
+  ], []);
 
   // ✅ PRICING TABLE: Price per page based on Paper Size and Print Mode
-  const PRINT_PRICES: Record<string, Record<string, number>> = {
+  const PRINT_PRICES = useMemo(() => ({
     short: { 
       black: 1.75,      // Black & White
       partial: 2.75,    // Partial Color
@@ -144,7 +145,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       full: 20.0,       // Full Color
       borderless: 30    // Borderless Print
     },
-  };
+  }), []);
 
   // ✅ Calculate Total Function
   const calculateTotal = useCallback(() => {
@@ -167,7 +168,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     // Example: If user selects "a4" and "black", pricePerPage = 2.00
     const paperSize = orderDetails.paperSize || "a4";
     const printMode = orderDetails.printMode || "black";
-    const pricePerPage = PRINT_PRICES[paperSize]?.[printMode] || 0;
+    const pricePerPage = PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES]?.[orderDetails.printMode as keyof typeof PRINT_PRICES['a4']] || 0;
     
     // ✅ STEP 4: Calculate printing cost
     // Formula: (pricePerPage × totalPages) × copies
@@ -177,8 +178,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     // ✅ STEP 5: Add binding cost if selected
     let bindingCost = 0;
     if (orderDetails.binding !== "none") {
-      const priceFn = BINDING_PRICES[orderDetails.binding];
-      if (priceFn) {
+      const bindingType = orderDetails.binding as keyof typeof BINDING_PRICES;
+      const priceFn = BINDING_PRICES[bindingType];
+      
+      if (priceFn && typeof priceFn === 'function') {
         bindingCost = priceFn(totalPages) * copies;
       }
     }
@@ -203,7 +206,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     
     setOrderTotal(total);
     return total;
-  }, [files, orderDetails, serviceType]);
+  }, [files, orderDetails, serviceType, BINDING_PRICES, PRINT_PRICES, RUSH_ID_PACKAGES]);
 
   useEffect(() => {
     calculateTotal();
@@ -637,7 +640,14 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     }
   };
 
-  const handlePreviewFile = (file: any) => {
+  const handlePreviewFile = (file: {
+    id: string;
+    name: string;
+    url: string;
+    type: string;
+    size: number;
+    pages?: number;
+  }) => {
     setPreviewModal({
       isOpen: true,
       fileName: file.name,
@@ -784,20 +794,22 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               <div className="flex items-start gap-3">
                 {/* File Preview/Icon */}
                 <div className="flex-shrink-0">
-                  {file.type.startsWith('image/') ? (
-                    <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-green-300">
-                      <img 
-                        src={file.url} 
-                        alt={file.name} 
-                        className="w-full h-full object-cover" 
+                  <div className="relative w-64 h-64 mx-auto">
+                    {file.type.startsWith('image/') ? (
+                      <Image
+                        src="/images/Gcash QR.webp"
+                        alt="GCash QR Code"
+                        fill
+                        className="object-contain"
+                        priority
                       />
-                    </div>
-                  ) : (
+                    ) : (
                     <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center border-2 border-blue-300">
                       <FileText className="w-10 h-10 text-blue-900" />
                     </div>
                   )}
                 </div>
+              </div>
 
                 {/* File Info */}
                 <div className="flex-1 min-w-0">
@@ -907,7 +919,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
       case 2:
         const totalPages = files.reduce((sum, f) => sum + (f.pages || 1), 0);
-        const pricePerPage = PRINT_PRICES[orderDetails.paperSize]?.[orderDetails.printMode] || 0;
+        const pricePerPage = PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES]?.[orderDetails.printMode as keyof typeof PRINT_PRICES['a4']] || 0;
         const printingSubtotal = totalPages * orderDetails.copies * pricePerPage;
 
         return (
@@ -969,9 +981,9 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                     onChange={(e) => setOrderDetails({ ...orderDetails, paperSize: e.target.value })}
                     className="w-full p-3 border rounded-lg"
                   >
-                    <option value="short">Letter (8.5" × 11")</option>
+                    <option value="short">Letter (8.5&quot; × 11&quot;)</option>
                     <option value="a4">A4</option>
-                    <option value="long">Legal (8.5" × 13")</option>
+                    <option value="long">Legal (8.5&quot; × 13&quot;)</option>
                     <option value="a3">A3</option>
                   </select>
                 </div>
@@ -980,13 +992,13 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   <label className="block text-sm font-medium mb-2">Print Mode</label>
                   <select
                     value={orderDetails.printMode}
-                    onChange={(e) => setOrderDetails({ ...orderDetails, printMode: e.target.value })}
+                    onChange={(e) => setOrderDetails({ ...orderDetails, printMode: e.target.value})}
                     className="w-full p-3 border rounded-lg"
                   >
-                    <option value="black">Black & White - ₱{PRINT_PRICES[orderDetails.paperSize].black}/page</option>
-                    <option value="partial">Partial Color - ₱{PRINT_PRICES[orderDetails.paperSize].partial}/page</option>
-                    <option value="full">Full Color - ₱{PRINT_PRICES[orderDetails.paperSize].full}/page</option>
-                    <option value="borderless">Borderless - ₱{PRINT_PRICES[orderDetails.paperSize].borderless}/page</option>
+                    <option value="black">Black & White - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].black}/page</option>
+                    <option value="partial">Partial Color - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].partial}/page</option>
+                    <option value="full">Full Color - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].full}/page</option>
+                    <option value="borderless">Borderless - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].borderless}/page</option>
                   </select>
                 </div>
 
@@ -1048,30 +1060,25 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                       <span className="text-gray-600">Price per Page:</span>
                       <span className="font-semibold">₱{pricePerPage}</span>
                     </div>
-                    <div className="border-t border-blue-200 pt-2 mt-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700 font-medium">Printing Cost:</span>
-                        <span className="text-lg font-bold text-blue-900">
-                          ₱{printingSubtotal.toFixed(2)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1 text-right">
-                        {totalPages} × {orderDetails.copies} × ₱{pricePerPage}
-                      </p>
-                    </div>
-                    {orderDetails.binding !== 'none' && (
-                      <div className="flex justify-between pt-2">
-                        <span className="text-gray-700 font-medium">Binding:</span>
-                        <span className="font-semibold text-blue-900 capitalize">
-                          {orderDetails.binding.replace('-', ' ')}
-                        </span>
-                      </div>
-                    )}
                     <div className="border-t-2 border-blue-300 pt-3 mt-3">
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-bold text-gray-900">Subtotal:</span>
                         <span className="text-2xl font-bold text-blue-900">
-                          ₱{(printingSubtotal + (orderDetails.binding !== 'none' ? BINDING_PRICES[orderDetails.binding]?.(totalPages) * orderDetails.copies || 0 : 0)).toFixed(2)}
+                          ₱{(() => {
+                            let subtotal = printingSubtotal;
+                            
+                            // Add binding cost if selected
+                            if (orderDetails.binding !== 'none') {
+                              const bindingType = orderDetails.binding as keyof typeof BINDING_PRICES;
+                              const priceFn = BINDING_PRICES[bindingType];
+                              
+                              if (priceFn && typeof priceFn === 'function') {
+                                subtotal += priceFn(totalPages) * orderDetails.copies;
+                              }
+                            }
+                            
+                            return subtotal.toFixed(2);
+                          })()}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 mt-1 text-center">
@@ -1382,7 +1389,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                         <div className="flex items-start gap-3">
                           {/* Preview Image */}
                           <div className="flex-shrink-0">
-                            <img
+                            <Image
                               src={paymentProof.url}
                               alt="Payment screenshot"
                               className="w-20 h-20 object-cover rounded-lg border-2 border-green-300"
@@ -1470,7 +1477,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
             <h2 className="text-2xl font-bold mb-2 text-gray-900">Order Placed Successfully!</h2>
             <p className="text-gray-600 mb-2">Your order ID: <span className="font-mono font-bold text-blue-900">#{orderId}</span></p>
             <p className="text-sm text-gray-500 mb-8">
-              We'll verify your payment and notify you once your order is being processed.
+              We&apos;ll verify your payment and notify you once your order is being processed.
             </p>
             
             <div className="flex gap-4 justify-center">

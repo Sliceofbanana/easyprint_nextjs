@@ -15,6 +15,7 @@ import {
   CreditCard,
   History,
   TrendingUp,
+  LucideIcon,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
 
@@ -41,10 +42,9 @@ interface Order {
 
 interface UserDashboardProps {
   user: { name?: string; email: string };
-  onLogout?: () => void;
 }
 
-export default function UserDashboard({ user: initialUser, onLogout }: UserDashboardProps) {
+export default function UserDashboard({ user: initialUser }: UserDashboardProps) {
   const { data: session, update } = useSession(); 
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
@@ -151,7 +151,7 @@ export default function UserDashboard({ user: initialUser, onLogout }: UserDashb
   }, [toast]);
 
   const getStatusInfo = (status: string) => {
-    const info: Record<string, { label: string; icon: any; color: string }> = {
+    const info: Record<string, { label: string; icon: LucideIcon; color: string }> = {
       PENDING: { label: 'Awaiting Payment', icon: CreditCard, color: 'text-yellow-600' },
       PROCESSING: { label: 'Processing', icon: Clock, color: 'text-blue-600' },
       READY: { label: 'Ready for Pickup', icon: Package, color: 'text-indigo-600' },

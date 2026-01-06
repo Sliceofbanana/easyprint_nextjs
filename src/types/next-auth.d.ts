@@ -7,6 +7,7 @@ declare module "next-auth" {
       role: string;
       email: string;
       name: string;
+      createdAt?: string;
     } & DefaultSession["user"];
   }
 
@@ -15,6 +16,7 @@ declare module "next-auth" {
     role: string;
     email: string;
     name: string;
+    createdAt?: string;
   }
 }
 
@@ -24,5 +26,6 @@ declare module "next-auth/jwt" {
     role: string;
     email: string;
     name: string;
+    createdAt?: string;
   }
 }

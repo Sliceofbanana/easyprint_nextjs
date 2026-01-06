@@ -4,6 +4,14 @@ import { authOptions } from '../auth/[...nextauth]/route';
 import cloudinary from '../../../lib/cloudinary';
 import path from 'path';
 
+interface CloudinaryUploadResult {
+  secure_url: string;
+  public_id: string;
+  pages?: number;
+  format?: string;
+  resource_type?: string;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -43,7 +51,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     // Upload to Cloudinary
-    const result = await new Promise((resolve, reject) => {
+    const result = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: type === 'payment' ? 'easyprint/payments' : 'easyprint/documents',
@@ -52,7 +60,6 @@ export async function POST(req: NextRequest) {
           public_id: `${timestamp}_${fileNameWithoutExt.replace(/\s+/g, '_')}`,
           // ✅ Make publicly accessible
           access_mode: 'public',
-          // ✅ Add transformation for images only
           ...(file.type.startsWith('image/') && {
             transformation: [
               { width: 1920, height: 1920, crop: 'limit' },
@@ -66,23 +73,21 @@ export async function POST(req: NextRequest) {
             reject(error);
           } else {
             console.log('✅ Upload success:', result?.secure_url);
-            resolve(result);
+            resolve(result as CloudinaryUploadResult);
           }
         }
       );
       uploadStream.end(buffer);
     });
 
-    const uploadResult = result as any;
-
     return NextResponse.json({
       success: true,
-      url: uploadResult.secure_url,
-      publicId: uploadResult.public_id,
+      url: result.secure_url,
+      publicId: result.public_id,
       fileName: originalName,
       fileSize: file.size,
       fileType: file.type,
-      pages: uploadResult.pages || 1,
+      pages: result.pages || 1,
     });
   } catch (error) {
     console.error('❌ Upload error:', error);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from '../components/ui/Use-Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -65,6 +65,7 @@ interface Order {
   updatedAt: string;
   fileName?: string;
   fileUrl?: string;
+  serviceType?: string;
   paperSize?: string;
   colorType?: string;
   copies?: number;
@@ -153,7 +154,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     unit: '',
     minStockLevel: '',
   });
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastNotificationCount, setLastNotificationCount] = useState(0);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [responseText, setResponseText] = useState('');
@@ -161,7 +161,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [lastMessageCount, setLastMessageCount] = useState(0);
   const [messageFilter, setMessageFilter] = useState<'all' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('all');
   const [users, setUsers] = useState<User[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
   
   // ✅ Memoized fetch messages function
   const fetchMessages = useCallback(async (showToast = false) => {
@@ -195,10 +194,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     }
   }, [toast, lastMessageCount]);
 
+    const stats = useMemo(() => {
+    const now = new Date();
+    let filteredOrders = orders;
+
+    // Filter orders based on report period
+    if (reportPeriod === 'daily') {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      filteredOrders = orders.filter(o => new Date(o.createdAt) >= today);
+    } else if (reportPeriod === 'weekly') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      filteredOrders = orders.filter(o => new Date(o.createdAt) >= weekAgo);
+    } else if (reportPeriod === 'monthly') {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      filteredOrders = orders.filter(o => new Date(o.createdAt) >= monthStart);
+    }
+
+    return {
+      totalOrders: filteredOrders.length,
+      totalRevenue: filteredOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
+      lowStock: inventory.filter(i => i.quantity <= i.minStockLevel).length,
+      unreadMessages: messages.filter(m => m.status === 'PENDING').length,
+    };
+  }, [orders, inventory, messages, reportPeriod]);
+
   // ✅ Memoized fetch notifications function
   const fetchNotifications = useCallback(async (showToast = false) => {
     try {
-      setIsRefreshing(true);
       const notifRes = await fetch('/api/notifications');
       
       if (notifRes.ok) {
@@ -230,7 +252,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
-      setIsRefreshing(false);
     }
   }, [toast, lastNotificationCount]);
 
@@ -390,174 +411,121 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       }
     };
 
-  // ✅ Manual refresh handler
-  const handleManualRefresh = async () => {
-    await fetchNotifications(false);
-    toast({
-      title: 'Refreshed',
-      description: 'Notifications updated successfully',
-      variant: 'success',
-    });
-  };
+     const filteredMessages = useMemo(() => {
+    if (messageFilter === 'all') return messages;
+    return messages.filter(m => m.status === messageFilter);
+  }, [messages, messageFilter]);
 
-  // ✅ Mark all as read
-  const handleMarkAllAsRead = async () => {
-    const previousNotifications = [...notifications];
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-
+  // ✅ ADD: Export sales report function
+  const exportSalesReport = useCallback(() => {
     try {
-      await Promise.all(
-        notifications
-          .filter((n) => !n.isRead)
-          .map((n) => fetch(`/api/notifications/${n.id}`, { method: 'PATCH' }))
-      );
-      
-      toast({
-        title: 'Success',
-        description: 'All alerts marked as done',
-      });
-      
-      await fetchNotifications(false);
-    } catch (error) {
-      setNotifications(previousNotifications);
-      setUnreadCount(previousNotifications.filter(n => !n.isRead).length);
-      toast({
-        title: 'Error',
-        description: 'Failed to update notifications',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // ✅ Mark single notification as read
-  const handleMarkAsRead = async (notifId: string, itemName?: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n))
-    );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-
-    try {
-      const response = await fetch(`/api/notifications/${notifId}`, {
-        method: 'PATCH',
-      });
-
-      if (!response.ok) throw new Error('Failed to update');
-
-      toast({
-        title: 'Marked as Done',
-        description: `${itemName || 'Alert'} completed`,
-      });
-    } catch (error) {
-      await fetchNotifications(false);
-      toast({
-        title: 'Error',
-        description: 'Failed to mark as done',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // ✅ Clear completed notifications
-  const handleClearCompleted = async () => {
-    const completedNotifs = notifications.filter((n) => n.isRead);
-    
-    if (completedNotifs.length === 0) {
-      toast({
-        title: 'No Completed Alerts',
-        description: 'There are no completed alerts to clear',
-      });
-      return;
-    }
-
-    try {
-      await Promise.all(
-        completedNotifs.map((n) =>
-          fetch(`/api/notifications/${n.id}`, { method: 'DELETE' })
-        )
-      );
-      
-      setNotifications(prev => prev.filter(n => !n.isRead));
-      
-      toast({
-        title: 'Cleaned Up',
-        description: `${completedNotifs.length} completed alert${completedNotifs.length > 1 ? 's' : ''} removed`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to clear notifications',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // ✅ Calculate statistics
-  const stats = {
-    totalOrders: orders.length,
-    pendingOrders: orders.filter((o) => o.status === 'PENDING').length,
-    totalRevenue: orders.reduce((sum, o) => sum + o.totalPrice, 0),
-    completedToday: orders.filter(
-      (o) =>
-        o.status === 'COMPLETED' &&
-        new Date(o.createdAt).toDateString() === new Date().toDateString()
-    ).length,
-    lowStock: notifications.filter((n) => !n.isRead && n.type === 'LOW_STOCK').length,
-    unreadMessages: messages.filter((m) => m.status === 'PENDING').length,
-  };
-
-  // ✅ Filter messages
-  const filteredMessages = messageFilter === 'all' 
-    ? messages 
-    : messages.filter((m) => m.status === messageFilter);
-  
-  const exportSalesReport = () => {
-    const getOrdersForPeriod = () => {
+      // Filter orders based on report period
       const now = new Date();
-      const filtered = orders.filter((order) => {
-        const orderDate = new Date(order.createdAt);
-        if (reportPeriod === 'daily') {
-          return orderDate.toDateString() === now.toDateString();
-        } else if (reportPeriod === 'weekly') {
-          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          return orderDate >= weekAgo;
-        } else {
-          return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
-        }
+      let filteredOrders = orders;
+
+      if (reportPeriod === 'daily') {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        filteredOrders = orders.filter(o => new Date(o.createdAt) >= today);
+      } else if (reportPeriod === 'weekly') {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        filteredOrders = orders.filter(o => new Date(o.createdAt) >= weekAgo);
+      } else if (reportPeriod === 'monthly') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        filteredOrders = orders.filter(o => new Date(o.createdAt) >= monthStart);
+      }
+
+      // Prepare data for export
+      const exportData = filteredOrders.map(order => ({
+        'Order Number': order.orderNumber || order.id,
+        'Customer Name': order.customerName,
+        'Customer Email': order.customerEmail,
+        'Service Type': order.serviceType || 'N/A',
+        'Paper Size': order.paperSize || 'N/A',
+        'Color Type': order.colorType || 'N/A',
+        'Copies': order.copies || 0,
+        'Pages': order.pages || 0,
+        'Total Price': order.totalPrice,
+        'Status': order.status,
+        'Date': new Date(order.createdAt).toLocaleDateString(),
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Orders');
+
+      // Generate filename with date
+      const filename = `Sales_Report_${reportPeriod}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, filename);
+
+      toast({
+        title: 'Export Successful',
+        description: `${filteredOrders.length} orders exported to ${filename}`,
+        variant: 'success',
       });
-      return filtered;
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Export Failed',
+        description: 'Failed to export sales report',
+        variant: 'destructive',
+      });
+    }
+  }, [orders, reportPeriod, toast]);
+
+  // ✅ UPDATE: Initial data fetch to include users
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const staffRes = await fetch('/api/admin/staff');
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          setStaffList(staffData);
+        }
+
+        const ordersRes = await fetch('/api/orders');
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          setOrders(ordersData);
+        }
+
+        const inventoryRes = await fetch('/api/admin/inventory');
+        if (inventoryRes.ok) {
+          const inventoryData = await inventoryRes.json();
+          setInventory(inventoryData);
+        }
+
+        const messagesRes = await fetch('/api/admin/messages');
+        if (messagesRes.ok) {
+          const messagesData = await messagesRes.json();
+          setMessages(messagesData);
+        }
+
+        // ✅ ADD: Fetch users
+        const usersRes = await fetch('/api/admin/users');
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          setUsers(usersData);
+        }
+
+        await fetchNotifications(false);
+
+      } catch (error) {
+        console.error('Error fetching admin data:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load dashboard data',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
     };
 
-    const periodOrders = getOrdersForPeriod();
-    const reportData = periodOrders.map((order) => ({
-      'Order Number': order.orderNumber,
-      'Customer Name': order.customerName,
-      'Customer Email': order.customerEmail,
-      'Status': order.status,
-      'Total Price': `₱${order.totalPrice.toFixed(2)}`,
-      'Date': new Date(order.createdAt).toLocaleDateString(),
-    }));
-
-    const summaryData = [
-      { Metric: 'Total Orders', Value: periodOrders.length },
-      { Metric: 'Total Revenue', Value: `₱${periodOrders.reduce((sum, o) => sum + o.totalPrice, 0).toFixed(2)}` },
-      { Metric: 'Average Order Value', Value: `₱${(periodOrders.reduce((sum, o) => sum + o.totalPrice, 0) / periodOrders.length || 0).toFixed(2)}` },
-    ];
-
-    const wb = XLSX.utils.book_new();
-    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-    const wsOrders = XLSX.utils.json_to_sheet(reportData);
-
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
-    XLSX.utils.book_append_sheet(wb, wsOrders, 'Orders');
-
-    XLSX.writeFile(wb, `Sales_Report_${reportPeriod}_${new Date().toISOString().split('T')[0]}.xlsx`);
-
-    toast({
-      title: 'Report Exported',
-      description: `${reportPeriod.charAt(0).toUpperCase() + reportPeriod.slice(1)} sales report downloaded successfully.`,
-    });
-  };
+    fetchData();
+  }, [fetchNotifications, toast]);
 
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -823,13 +791,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           {[
             { id: 'overview', label: 'Overview', icon: TrendingUp },
             { id: 'staff', label: 'Staff Management', icon: Users },
+            { id: 'users', label: 'Users', icon: Users },
+            { id: 'inventory', label: 'Inventory', icon: Package },
             { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadCount },
             { id: 'messages', label: 'Messages', icon: MessageSquare, badge: stats.unreadMessages },
             { id: 'settings', label: 'Settings', icon: Settings },
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors relative whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.id
                   ? 'text-blue-900 border-b-2 border-blue-900 bg-blue-50'
@@ -849,6 +819,52 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
 
           <div className="p-3 md:p-4">
             <AnimatePresence mode="wait">
+              {activeTab === 'users' && (
+                <motion.div
+                  key="users"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <h2 className="text-xl font-semibold mb-6">User Management</h2>
+                  <div className="overflow-x-auto bg-white rounded-lg border">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="text-left p-4 font-semibold">Name</th>
+                          <th className="text-left p-4 font-semibold">Email</th>
+                          <th className="text-left p-4 font-semibold">Role</th>
+                          <th className="text-left p-4 font-semibold">Orders</th>
+                          <th className="text-left p-4 font-semibold">Joined</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.map((user) => (
+                          <tr key={user.id} className="border-b hover:bg-gray-50">
+                            <td className="p-4">{user.name}</td>
+                            <td className="p-4">{user.email}</td>
+                            <td className="p-4">
+                              <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                                user.role === 'ADMIN' 
+                                  ? 'bg-purple-100 text-purple-700' 
+                                  : user.role === 'STAFF'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {user.role}
+                              </span>
+                            </td>
+                            <td className="p-4">{user._count.orders}</td>
+                            <td className="p-4 text-sm text-gray-600">
+                              {new Date(user.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
               {activeTab === 'overview' && (
                 <motion.div
                   key="overview"
@@ -1150,7 +1166,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   )}
                 </motion.div>
               )}
-
               {activeTab === 'messages' && (
                 <motion.div
                   key="messages"
@@ -1411,7 +1426,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   )}
                 </motion.div>
               )}
-
               {activeTab === 'staff' && (
                 <motion.div
                   key="staff"
@@ -1556,8 +1570,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   )}
                 </motion.div>
               )}
-
-              {/* ✅ Inventory Tab with Add/Edit */}
               {activeTab === 'inventory' && (
                 <motion.div
                   key="inventory"
@@ -1781,8 +1793,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   )}
                 </motion.div>
               )}
-
-              {/* ✅ Products Tab */}
               {activeTab === 'products' && (
                 <motion.div
                   key="products"
@@ -1801,8 +1811,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   </div>
                 </motion.div>
               )}
-
-              {/* ✅ Settings Tab */}
               {activeTab === 'settings' && (
                 <motion.div
                   key="settings"

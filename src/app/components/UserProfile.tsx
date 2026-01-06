@@ -12,16 +12,17 @@ export default function ProfilePage() {
   const { data: session, update } = useSession();
   const router = useRouter();
   const { toast } = useToast();
-  
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // ✅ Initialize form with session data
   useEffect(() => {
     if (session?.user) {
       setName(session.user.name || '');
       setEmail(session.user.email || '');
+      setIsLoading(false);
     }
   }, [session]);
 
@@ -30,7 +31,7 @@ export default function ProfilePage() {
     if (!session && !isLoading) {
       router.push('/login');
     }
-  }, [session, isLoading, router]);
+  }, [session, router, isLoading]);
 
   // ✅ Handle profile update
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -234,14 +235,17 @@ export default function ProfilePage() {
             <div>
               <p className="text-gray-500 mb-1">Member Since</p>
               <p className="font-semibold">
-                {(() => {
-                  const createdAt = (session.user as any)?.createdAt;
-                  return new Date(createdAt ?? Date.now()).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  });
-                })()}
+                {session.user.createdAt
+                  ? new Date(session.user.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : new Date().toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
               </p>
             </div>
             <div>

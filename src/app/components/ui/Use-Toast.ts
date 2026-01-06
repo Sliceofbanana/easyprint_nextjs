@@ -11,7 +11,7 @@ type ToasterToast = ToastProps & {
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
-  variant?: 'default' | 'destructive' | 'success';
+  variant?: 'default' | 'destructive' | 'success' | 'info' | 'warning';
 };
 
 // ✅ Use const assertion and export as value

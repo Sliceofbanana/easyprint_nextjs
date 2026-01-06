@@ -16,9 +16,9 @@ import {
   Receipt,
   Settings,
   User,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
-import { AlertTriangle, Bell } from 'lucide-react';
 import LowStockModal from './ui/LowStockModal';
 import Image from 'next/image';
 
@@ -29,7 +29,6 @@ interface StaffDashboardProps {
     email: string;
     name?: string;
   };
-  onLogout: () => void;
 }
 
 interface Order {
@@ -53,9 +52,8 @@ interface Order {
   adminNotes?: string;
 }
 
-const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
+const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   const { toast } = useToast();
-
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -176,7 +174,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
   }, [orders, searchTerm, statusFilter]);
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    try {
       const response = await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -192,9 +189,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
         toast({ title: 'Status Updated', description: `Order status changed to ${newStatus}` });
         setOpenDropdownId(null);
       }
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
-    }
   };
 
   const downloadDocument = async (order: Order) => {
@@ -248,6 +242,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
   };
 
   const printReceipt = (order: Order) => {
+    try{
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       toast({
@@ -310,11 +305,11 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
       printWindow.print();
     }, 250);
 
-    } catch (err) {  // ✅ FIXED: Rename to 'err' and use it
-      console.error('Print error:', err);
+    } catch (error) {  
+      console.error('Print error:', error);
       toast({
         title: 'Print Failed',
-        description: err instanceof Error ? err.message : 'Failed to generate print preview',
+        description: error instanceof Error ? error.message : 'Failed to generate print preview',
         variant: 'destructive',
       });
     }
@@ -681,7 +676,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                         </div>
                         <div>
                           <h3 className="font-bold text-lg text-gray-900">Payment Verification Required</h3>
-                          <p className="text-sm text-gray-600">Review customer's payment proof below</p>
+                          <p className="text-sm text-gray-600">Review customer&apos;s payment proof below</p>
                         </div>
                       </div>
 
@@ -722,12 +717,12 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user, onLogout }) => {
                               Payment Screenshot
                             </p>
                             <div className="relative group">
-                              <img
+                              <Image
                                 src={paymentInfo.screenshotUrl}
                                 alt="Payment Proof"
                                 className="w-full h-48 object-contain rounded-lg border-2 border-gray-200 cursor-pointer hover:border-orange-400 transition-all"
-                                unoptimized
                                 onClick={() => window.open(paymentInfo.screenshotUrl || '', '_blank')}
+                                unoptimized
                                 onError={(e) => {
                                   console.error('❌ Failed to load payment screenshot:', paymentInfo.screenshotUrl);
                                   e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%236b7280"%3EImage Error%3C/text%3E%3C/svg%3E';

@@ -1,16 +1,17 @@
 // tailwind.config.ts
 import { type Config } from 'tailwindcss';
+import tailwindcssAnimate from "tailwindcss-animate";
 
-export default {
+const config: Config = {
   content: [
-    './src/**/*.{ts,tsx,js,jsx}',           // ✅ Scan everything in src/
-    './src/app/**/*.{ts,tsx,js,jsx}',       // ✅ Explicit app directory
-    './src/components/**/*.{ts,tsx,js,jsx}', // ✅ Explicit components
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {}
+    extend: {},
   },
-  plugins: [
-    require('tailwindcss-animate')
-  ]
-} satisfies Config
+  plugins: [tailwindcssAnimate],
+};
+
+export default config;
