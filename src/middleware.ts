@@ -1,37 +1,45 @@
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+import { withAuth } from 'next-auth/middleware'
 
 export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const path = req.nextUrl.pathname;
+  async function middleware(request: NextRequest) {
+    // Supabase session refresh (optional)
+    let response = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    })
 
-    console.log('🔐 Middleware - Path:', path, 'Role:', token?.role); // ✅ Debug log
-
-    const role = token?.role as string | undefined;
-
-    // Admin routes
-    if (path.startsWith("/admin")) {
-      if (role?.toUpperCase() !== "ADMIN") {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            request.cookies.set({ name, value, ...options })
+            response = NextResponse.next({
+              request: { headers: request.headers },
+            })
+            response.cookies.set({ name, value, ...options })
+          },
+          remove(name: string, options: CookieOptions) {
+            request.cookies.set({ name, value: '', ...options })
+            response = NextResponse.next({
+              request: { headers: request.headers },
+            })
+            response.cookies.set({ name, value: '', ...options })
+          },
+        },
       }
-    }
+    )
 
-    // Staff routes
-    if (path.startsWith("/staff")) {
-      if (role?.toUpperCase() !== "STAFF") {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
-      }
-    }
+    await supabase.auth.getUser()
 
-    // User routes
-    if (path.startsWith("/user")) {
-      if (role?.toUpperCase() !== "USER") {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
-      }
-    }
-
-    return NextResponse.next();
+    return response
   },
   {
     callbacks: {

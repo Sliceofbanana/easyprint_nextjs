@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { useCloudinary } from './useCloudinary';
 import { useToast } from '../app/components/ui/Use-Toast';
 
 export interface UploadedFile {
@@ -24,35 +23,25 @@ interface UseFileUploadOptions {
 }
 
 export const useFileUpload = ({
-  cloudName,
-  uploadPreset,
   maxFiles = 10,
-  maxFileSize = 10 * 1024 * 1024, // 10MB
+  maxFileSize = 10 * 1024 * 1024,
   acceptedTypes = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'],
 }: UseFileUploadOptions) => {
   const { toast } = useToast();
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<UploadedFile[]>([]);
 
-  const { uploadToCloudinary } = useCloudinary({
-    uploadPreset,
-    cloudName,
-  });
-
   const validateFile = useCallback(
     (file: File): string | null => {
-      // Check file size
       if (file.size > maxFileSize) {
-        return `File size exceeds ${maxFileSize / (1024 * 1024)}MB limit`;
+        return `File size exceeds ${maxFileSize / 1024 / 1024}MB limit`;
       }
 
-      // Check file type
       const fileExt = `.${file.name.split('.').pop()?.toLowerCase()}`;
       if (!acceptedTypes.includes(fileExt)) {
         return `File type ${fileExt} is not supported`;
       }
 
-      // Check max files
       if (files.length + uploadingFiles.length >= maxFiles) {
         return `Maximum ${maxFiles} files allowed`;
       }
@@ -63,10 +52,7 @@ export const useFileUpload = ({
   );
 
   const uploadFile = useCallback(
-    async (file: File, folder: 'documents' | 'payments' = 'documents') => {
-      const fileId = `${Date.now()}_${Math.random()}`;
-
-      // Validate file
+    async (file: File, folder: 'documents' | 'payments' = 'documents'): Promise<UploadedFile | null> => {
       const validationError = validateFile(file);
       if (validationError) {
         toast({
@@ -77,7 +63,8 @@ export const useFileUpload = ({
         return null;
       }
 
-      // Add to uploading files
+      const fileId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       const uploadingFile: UploadedFile = {
         id: fileId,
         file,
@@ -94,30 +81,43 @@ export const useFileUpload = ({
       setUploadingFiles((prev) => [...prev, uploadingFile]);
 
       try {
-        const result = await uploadToCloudinary(file, folder);
+        // ✅ Upload to Supabase via API route
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', folder);
 
-        // Update to success
+        const response = await fetch('/api/upload/supabase', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Upload failed');
+        }
+
+        const result = await response.json();
+
         const completedFile: UploadedFile = {
           ...uploadingFile,
           url: result.url,
-          publicId: result.publicId,
+          publicId: result.filePath,
           pages: result.pages || 1,
           progress: 100,
           status: 'success',
         };
 
-        // Move from uploading to completed
         setUploadingFiles((prev) => prev.filter((f) => f.id !== fileId));
         setFiles((prev) => [...prev, completedFile]);
 
         toast({
           title: 'Upload Successful',
           description: `${file.name} uploaded successfully`,
+          variant: 'success',
         });
 
         return completedFile;
       } catch (error) {
-        // Mark as error
         setUploadingFiles((prev) =>
           prev.map((f) =>
             f.id === fileId ? { ...f, status: 'error' as const } : f
@@ -126,22 +126,27 @@ export const useFileUpload = ({
 
         toast({
           title: 'Upload Failed',
-          description: error instanceof Error ? error.message : 'Upload failed',
+          description: error instanceof Error ? error.message : 'Failed to upload file',
           variant: 'destructive',
         });
 
         return null;
       }
     },
-    [uploadToCloudinary, validateFile, toast]
+    [validateFile, toast]
   );
 
   const uploadMultipleFiles = useCallback(
     async (fileList: FileList | File[]) => {
-      const filesArray = Array.from(fileList);
-      const uploadPromises = filesArray.map((file) => uploadFile(file));
-      const results = await Promise.all(uploadPromises);
-      return results.filter((result) => result !== null) as UploadedFile[];
+      const filesToUpload = Array.from(fileList);
+      
+      for (const file of filesToUpload) {
+        try {
+          await uploadFile(file);
+        } catch (error) {
+          console.error(`Failed to upload ${file.name}:`, error);
+        }
+      }
     },
     [uploadFile]
   );
