@@ -30,13 +30,15 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      if (!user) {
+      // ✅ Check if user exists and has a password
+      if (!user || !user.password) {
         return NextResponse.json(
           { error: 'Invalid credentials' },
           { status: 401 }
         );
       }
 
+      // ✅ Now TypeScript knows user.password is not null
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) {
         return NextResponse.json(

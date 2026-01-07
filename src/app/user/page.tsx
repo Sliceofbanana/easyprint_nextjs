@@ -37,7 +37,6 @@ export default function UserPage() {
       />
       <UserDashboard
         user={{ name: user.name || 'User', email: user.email || '' }}
-        onLogout={handleLogout}
       />
     </>
   );

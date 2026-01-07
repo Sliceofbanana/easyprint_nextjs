@@ -37,7 +37,6 @@ export default function StaffPage() {
       />
       <StaffDashboard
         user={{ id: user.id || '', email: user.email || '', name: user.name }}
-        onLogout={handleLogout}
       />
     </>
   );

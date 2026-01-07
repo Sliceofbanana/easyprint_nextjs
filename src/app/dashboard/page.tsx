@@ -77,7 +77,6 @@ export default function DashboardPage() {
               email: session.user.email,
               name: session.user.name || undefined,
             }}
-            onLogout={handleLogout}
           />
         );
 
@@ -89,13 +88,11 @@ export default function DashboardPage() {
               name: session.user.name || undefined,
               email: session.user.email,
             }}
-            onLogout={handleLogout}
           />
         );
     }
   };
 
-  // ✅ FIXED: Pass handleLogout to Navbar
   return (
     <>
       <Navbar 

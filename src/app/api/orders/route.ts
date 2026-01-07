@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import prisma from '../../../lib/prisma';
+import { OrderStatus } from '@prisma/client';
 
 // ✅ GET all orders
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
       paymentProofUrl: paymentProofUrl || null,
       paymentReference: paymentReference || null,
       adminNotes: adminNotes || `Service: ${serviceType}\nDelivery: ${body.deliveryType || 'pickup'}`,
-      status: 'PENDING',
+      status: OrderStatus.PENDING, 
     };
 
     console.log('💾 Sanitized data for Prisma:', JSON.stringify(sanitizedData, null, 2));
@@ -170,7 +171,6 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error('❌ Error creating order:', error);
     
-    // ✅ FIX: Use unknown type + type guard
     const err = error as { message?: string; code?: string; meta?: unknown };
 
     return NextResponse.json(

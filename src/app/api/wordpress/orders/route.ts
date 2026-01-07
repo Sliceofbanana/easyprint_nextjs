@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { OrderStatus } from '@prisma/client';
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
       bindingType,
       fileUrl,
       fileName,
+      pricePerPage, // ✅ Add this field
       totalPrice,
       notes,
       paymentProofUrl,
@@ -66,11 +68,12 @@ export async function POST(req: NextRequest) {
         bindingType: bindingType?.toUpperCase()?.replace(/-/g, '_') || 'NONE',
         fileUrl: fileUrl || '',
         fileName: fileName || 'document.pdf',
+        pricePerPage: parseFloat(String(pricePerPage)) || 0, 
         totalPrice: parseFloat(totalPrice),
         notes: notes || '',
         paymentProofUrl: paymentProofUrl || null,
         paymentReference: paymentReference || null,
-        status: 'PENDING',
+        status: OrderStatus.PENDING,
       },
     });
 
