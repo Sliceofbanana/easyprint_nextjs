@@ -3,25 +3,39 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
-  // ✅ Check NextAuth session first
+  const { pathname } = request.nextUrl
+
+  // ✅ Allow root path
+  if (pathname === '/') {
+    return NextResponse.next()
+  }
+
+  // ✅ Allow public routes
+  if (
+    pathname === '/login' || 
+    pathname === '/register' || 
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/wordpress') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/images')
+  ) {
+    return NextResponse.next()
+  }
+
+  // ✅ Check NextAuth session
   const token = await getToken({ 
     req: request, 
     secret: process.env.NEXTAUTH_SECRET 
   })
 
-  const { pathname } = request.nextUrl
-
-  // ✅ Allow public routes
-  if (pathname === '/login' || pathname === '/register' || pathname.startsWith('/api/auth')) {
-    return NextResponse.next()
-  }
-
   // ✅ Redirect to login if no session
   if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('callbackUrl', pathname)
+    return NextResponse.redirect(loginUrl)
   }
 
-  // ✅ Changed let to const
+  // Supabase session refresh
   const response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -53,12 +67,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/dashboard/:path*',
-    '/admin/:path*',
-    '/staff/:path*',
-    '/user/:path*',
-    '/order/:path*',
-    '/profile/:path*',
-    '/support/:path*'
+    '/((?!_next/static|_next/image|favicon.ico|images/).*)',
   ],
 }

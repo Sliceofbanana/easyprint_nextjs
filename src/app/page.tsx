@@ -10,25 +10,26 @@ export default function HomePage() {
   const { data: session, status } = useSession();
   const [mounted, setMounted] = useState(false);
 
-  // ✅ Ensure component is mounted (hydration safety)
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // ✅ Handle redirect after mount
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || status === 'loading') return;
 
-    if (status === 'loading') return;
-
-    if (status === 'authenticated' && session) {
-      router.replace('/dashboard');
-    } else {
-      router.replace('/login');
+    // ✅ Add error handling
+    try {
+      if (status === 'authenticated' && session) {
+        router.push('/dashboard');
+      } else if (status === 'unauthenticated') {
+        router.push('/login');
+      }
+    } catch (error) {
+      console.error('Redirect error:', error);
+      router.push('/login');
     }
   }, [mounted, status, session, router]);
 
-  // ✅ Show loading spinner instead of null
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50">
       <div className="text-center">
