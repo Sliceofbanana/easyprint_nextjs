@@ -5,17 +5,14 @@ import { getToken } from 'next-auth/jwt'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // ✅ Allow root path FIRST
-  if (pathname === '/') {
-    return NextResponse.next()
-  }
-
-  // ✅ Allow public routes
+  // ✅ Allow public paths
   const publicPaths = [
+    '/',
     '/login',
     '/register',
     '/api/auth',
     '/api/wordpress',
+    '/api/upload',
     '/_next',
     '/images',
     '/favicon.ico',
@@ -26,29 +23,24 @@ export async function middleware(request: NextRequest) {
   }
 
   // ✅ Check NextAuth session
-  try {
-    const token = await getToken({ 
-      req: request, 
-      secret: process.env.NEXTAUTH_SECRET 
-    })
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  })
 
-    // ✅ Redirect to login if no session
-    if (!token) {
-      const loginUrl = new URL('/login', request.url)
-      loginUrl.searchParams.set('callbackUrl', pathname)
-      return NextResponse.redirect(loginUrl)
+  if (!token) {
+    // ❗ Never redirect API calls
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-  } catch (error) {
-    console.error('❌ Middleware auth error:', error)
-    return NextResponse.redirect(new URL('/login', request.url))
+
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('callbackUrl', pathname)
+    return NextResponse.redirect(loginUrl)
   }
 
-  // Supabase session refresh
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  // ✅ Supabase session refresh
+  const response = NextResponse.next()
 
   try {
     const supabase = createServerClient(
@@ -71,7 +63,7 @@ export async function middleware(request: NextRequest) {
 
     await supabase.auth.getUser()
   } catch (error) {
-    console.error('❌ Supabase session refresh error:', error)
+    console.error('❌ Supabase error:', error)
   }
 
   return response
@@ -79,13 +71,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // ✅ More specific matcher
-    '/dashboard/:path*',
-    '/admin/:path*',
-    '/staff/:path*',
-    '/user/:path*',
-    '/order/:path*',
-    '/profile/:path*',
-    '/support/:path*',
+    '/((?!_next|favicon.ico|images).*)',
   ],
 }
