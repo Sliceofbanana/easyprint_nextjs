@@ -1,93 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import prisma from '../../../../../lib/prisma';
+import prisma from '@/lib/prisma';
 
-// ✅ GET single message
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ messageId: string }> }
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = session.user as { role: string };
-    if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { messageId } = await params;
-
-    const message = await prisma.message.findUnique({
-      where: { id: messageId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        responses: {
-          include: {
-            respondedBy: {
-              select: {
-                name: true,
-                email: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
-      },
-    });
-
-    if (!message) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(message);
-  } catch (error) {
-    console.error('Error fetching message:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// ✅ PATCH - Update message status
-export async function PATCH(
+// ✅ POST - Admin/Staff responds to a customer message
+export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as { role: string };
-    if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const respondingUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true, name: true },
+    });
+
+    if (!respondingUser || (respondingUser.role !== 'ADMIN' && respondingUser.role !== 'STAFF')) {
+      return NextResponse.json({ error: 'Forbidden - Admin/Staff only' }, { status: 403 });
     }
 
     const { messageId } = await params;
-    const body = await req.json();
-    const { status } = body;
+    const { message: responseMessage } = await req.json();
 
-    if (!status || !['PENDING', 'IN_PROGRESS', 'RESOLVED'].includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status' },
-        { status: 400 }
-      );
+    if (!responseMessage?.trim()) {
+      return NextResponse.json({ error: 'Response message required' }, { status: 400 });
     }
 
-    const message = await prisma.message.update({
+    // Create the response
+    const response = await prisma.messageResponse.create({
+      data: {
+        messageId,
+        respondedById: respondingUser.id,
+        message: responseMessage.trim(),
+      },
+      include: {
+        respondedBy: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Get the updated message with all responses
+    const updatedMessage = await prisma.message.findUnique({
       where: { id: messageId },
-      data: { status },
       include: {
         user: {
           select: {
@@ -112,46 +75,13 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(message);
+    console.log('✅ Response created:', response);
+
+    return NextResponse.json(updatedMessage);
   } catch (error) {
-    console.error('Error updating message:', error);
+    console.error('❌ Error creating response:', error);
     return NextResponse.json(
-      { error: 'Failed to update message' },
-      { status: 500 }
-    );
-  }
-}
-
-// ✅ DELETE - Delete message
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ messageId: string }> }
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = session.user as { role: string };
-    if (user.role !== 'ADMIN' && user.role !== 'STAFF') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { messageId } = await params;
-
-    await prisma.message.delete({
-      where: { id: messageId },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Message deleted',
-    });
-  } catch (error) {
-    console.error('Error deleting message:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete message' },
+      { error: 'Failed to send response' },
       { status: 500 }
     );
   }
