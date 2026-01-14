@@ -1328,7 +1328,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                       </p>
                       
                       {/* QR Code Image */}
-                      <div className="bg-white p-4 rounded-lg inline-block">
+                      <div className="bg-white p-4 rounded-lg">
                         <div className="relative w-48 h-48">
                           <Image
                             src={selectedPaymentMethod === 'gcash' 
