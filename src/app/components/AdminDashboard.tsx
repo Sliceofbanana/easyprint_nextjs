@@ -377,7 +377,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       }
       setSendingResponse(true);
       try {
-        const response = await fetch(`/api/admin/messages/${messageId}/respond`, {
+        const response = await fetch(`/api/admin/messages/${messageId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: responseText }),
