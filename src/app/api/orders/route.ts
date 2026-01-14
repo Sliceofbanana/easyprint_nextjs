@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest) {
 
     const formattedOrders = orders.map(order => ({
       id: order.id,
-      orderNumber: `MQ_${order.orderNumber}`,
+      orderNumber: order.orderNumber,
       customerName: order.customerName,
       customerEmail: order.customerEmail,
       customerPhone: order.customerPhone,

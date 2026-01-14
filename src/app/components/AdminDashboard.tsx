@@ -572,6 +572,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user? This will also delete all their orders and data.')) return;
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, { 
+        method: 'DELETE' 
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete user');
+      }
+
+      toast({ 
+        title: 'Deleted', 
+        description: 'User removed successfully',
+        variant: 'success'
+      });
+      
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to delete user', 
+        variant: 'destructive' 
+      });
+    }
+  };
+
   const handleAddInventory = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -837,6 +866,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                           <th className="text-left p-4 font-semibold">Role</th>
                           <th className="text-left p-4 font-semibold">Orders</th>
                           <th className="text-left p-4 font-semibold">Joined</th>
+                          <th className="text-left p-4 font-semibold">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -858,6 +888,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                             <td className="p-4">{user._count.orders}</td>
                             <td className="p-4 text-sm text-gray-600">
                               {new Date(user.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-4">
+                              <button
+                                onClick={() => handleDeleteUser(user.id)}
+                                disabled={user.role === 'ADMIN'} // ✅ Prevent deleting admins
+                                className={`transition-colors ${
+                                  user.role === 'ADMIN'
+                                    ? 'text-gray-300 cursor-not-allowed'
+                                    : 'text-red-600 hover:text-red-800'
+                                }`}
+                                title={user.role === 'ADMIN' ? 'Cannot delete admin users' : 'Delete user'}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </td>
                           </tr>
                         ))}
