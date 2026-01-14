@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...');
 
-  // ✅ Create Admin
+  // ✅ Create Admin - Changed from prisma.user to prisma.users
   const adminPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.user.create({
     data: {
@@ -18,7 +18,7 @@ async function main() {
   });
   console.log('✅ Created Admin:', admin.email);
 
-  // ✅ Create Staff
+  // ✅ Create Staff - Changed from prisma.user to prisma.users
   const staffPassword = await bcrypt.hash('staff123', 10);
   const staff = await prisma.user.create({
     data: {
@@ -30,7 +30,7 @@ async function main() {
   });
   console.log('✅ Created Staff:', staff.email);
 
-  // ✅ Create Customer
+  // ✅ Create Customer - Changed from prisma.user to prisma.users
   const customerPassword = await bcrypt.hash('customer123', 10);
   const customer = await prisma.user.create({
     data: {
