@@ -86,7 +86,7 @@ export const useFileUpload = ({
         formData.append('file', file);
         formData.append('type', folder);
 
-        const response = await fetch('/api/upload/supabase', {
+        const response = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
         });

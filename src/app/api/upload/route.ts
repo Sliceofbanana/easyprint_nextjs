@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import cloudinary from '@/lib/cloudinary'
 import path from 'path'
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Add type for Cloudinary upload result
 interface CloudinaryUploadResult {
@@ -11,16 +13,17 @@ interface CloudinaryUploadResult {
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ WordPress token auth
-    const wpToken = req.headers.get('x-wp-token')
+    // ✅ Check for either WordPress token OR NextAuth session
+    const wpToken = req.headers.get('x-wp-token');
+    const session = await getServerSession(authOptions);
 
-    if (wpToken !== process.env.WORDPRESS_API_TOKEN) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!wpToken && !session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await req.formData()
-    const file = formData.get('file') as File
-    const type = formData.get('type') as string
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+    const type = formData.get('type') as string;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
