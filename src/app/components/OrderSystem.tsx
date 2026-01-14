@@ -58,6 +58,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     fileType: '',
   });
 
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'gcash' | 'unionbank'>('gcash');
   const [paymentUploading, setPaymentUploading] = useState(false);
   const [paymentProgress, setPaymentProgress] = useState(0);
   const [serviceType, setServiceType] = useState<'DOCUMENT_PRINTING' | 'RUSH_ID' | null>(null);
@@ -1271,196 +1272,268 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         );
 
       case 6:
-        return (
-          <div>
-            <h2 className="text-xl font-bold mb-6">Payment</h2>
-            <div className="space-y-6">
-              <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-                <div className="flex items-start gap-4">
-                  <QrCode className="w-8 h-8 text-blue-900 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-blue-900 mb-2">Scan to Pay</h3>
-                    <p className="text-sm text-gray-700 mb-4">
-                      Scan this QR code with your GCash app
-                    </p>
-                    <div className="bg-white p-4 rounded-lg inline-block">
-                      <div className="w-48 h-48 bg-gray-200 flex items-center justify-center text-gray-400">
-                        <QrCode className="w-24 h-24" />
+          return (
+            <div>
+              <h2 className="text-xl font-bold mb-6">Payment</h2>
+              
+              <div className="space-y-6">
+                {/* Payment Method Selector */}
+                <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Select Payment Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod('gcash')}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        selectedPaymentMethod === 'gcash'
+                          ? 'border-blue-500 bg-blue-50 text-blue-900'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="font-semibold">GCash</div>
+                        <div className="text-xs text-gray-600 mt-1">Mobile Wallet</div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod('unionbank')}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        selectedPaymentMethod === 'unionbank'
+                          ? 'border-blue-500 bg-blue-50 text-blue-900'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="font-semibold">UnionBank</div>
+                        <div className="text-xs text-gray-600 mt-1">Bank Transfer</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* QR Code Display */}
+                <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+                  <div className="flex items-start gap-4">
+                    <QrCode className="w-8 h-8 text-blue-900 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-blue-900 mb-2">
+                        {selectedPaymentMethod === 'gcash' ? 'GCash QR Code' : 'UnionBank QR Code'}
+                      </h3>
+                      <p className="text-sm text-gray-700 mb-4">
+                        Scan this QR code with your {selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} app
+                      </p>
+                      
+                      {/* QR Code Image */}
+                      <div className="bg-white p-4 rounded-lg inline-block">
+                        <div className="relative w-48 h-48">
+                          <Image
+                            src={selectedPaymentMethod === 'gcash' 
+                              ? '/images/Gcash Qr.webp' 
+                              : '/images/Unionbank Qr.webp'
+                            }
+                            alt={`${selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} QR Code`}
+                            fill
+                            className="object-contain"
+                            priority
+                            unoptimized
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Account Details */}
+                      <div className="mt-4 p-3 bg-white rounded-lg border border-blue-200">
+                        <p className="text-sm font-medium text-gray-700">
+                          Or send to:
+                        </p>
+                        {selectedPaymentMethod === 'gcash' ? (
+                          <>
+                            <p className="text-sm mt-1">
+                              <span className="text-gray-600">Number:</span>{' '}
+                              <span className="font-bold text-blue-900">0915 123 4567</span>
+                            </p>
+                            <p className="text-sm mt-1">
+                              <span className="text-gray-600">Name:</span>{' '}
+                              <span className="font-semibold">MQ Printing Services</span>
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm mt-1">
+                              <span className="text-gray-600">Account Number:</span>{' '}
+                              <span className="font-bold text-blue-900">1234 5678 9012</span>
+                            </p>
+                            <p className="text-sm mt-1">
+                              <span className="text-gray-600">Account Name:</span>{' '}
+                              <span className="font-semibold">MQ Printing Services</span>
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
-                    <p className="text-sm font-medium text-gray-700 mt-4">
-                      Or send to: <span className="font-bold text-blue-900">0915 XXX XXXX</span>
-                    </p>
                   </div>
                 </div>
-              </div>
 
-              <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-6 rounded-lg">
-                <p className="text-sm opacity-90 mb-1">Total Amount to Pay</p>
-                <p className="text-3xl font-bold">₱{orderTotal.toFixed(2)}</p>
-              </div>
+                {/* Total Amount */}
+                <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-6 rounded-lg">
+                  <p className="text-sm opacity-90 mb-1">Total Amount to Pay</p>
+                  <p className="text-3xl font-bold">₱{orderTotal.toFixed(2)}</p>
+                </div>
 
-              <div className="bg-white p-6 border-2 border-gray-200 rounded-lg">
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-blue-900" />
-                  Upload Payment Proof
-                </h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      GCash Reference Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={paymentProof.ref}
-                      onChange={(e) => updatePaymentProof({ ref: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                      placeholder="Enter reference number (e.g., 1234567890)"
-                      required
-                    />
-                  </div>
+                {/* Upload Payment Proof */}
+                <div className="bg-white p-6 border-2 border-gray-200 rounded-lg">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-blue-900" />
+                    Upload Payment Proof
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        GCash Reference Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={paymentProof.ref}
+                        onChange={(e) => updatePaymentProof({ ref: e.target.value })}
+                        className="w-full p-3 border rounded-lg"
+                        placeholder="Enter reference number (e.g., 1234567890)"
+                        required
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Payment Screenshot <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      ref={proofInputRef}
-                      type="file"
-                      onChange={handleProofUpload}
-                      accept="image/*"
-                      className="hidden"
-                      disabled={paymentUploading}
-                    />
-                    
-                    {/* Upload Button */}
-                    {!paymentProof.file && !paymentUploading && (
-                      <button
-                        onClick={() => proofInputRef.current?.click()}
-                        className="w-full p-6 border-2 border-dashed rounded-lg hover:border-blue-900 hover:bg-blue-50 transition-colors"
-                      >
-                        <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-600 font-medium">
-                          Click to upload payment screenshot
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          JPG, PNG (Max 5MB)
-                        </p>
-                      </button>
-                    )}
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Payment Screenshot <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        ref={proofInputRef}
+                        type="file"
+                        onChange={handleProofUpload}
+                        accept="image/*"
+                        className="hidden"
+                        disabled={paymentUploading}
+                      />
+                      
+                      {/* Upload Button */}
+                      {!paymentProof.file && !paymentUploading && (
+                        <button
+                          onClick={() => proofInputRef.current?.click()}
+                          type="button"
+                          className="w-full p-6 border-2 border-dashed rounded-lg hover:border-blue-900 hover:bg-blue-50 transition-colors"
+                        >
+                          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-600 font-medium">
+                            Click to upload payment screenshot
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            JPG, PNG (Max 5MB)
+                          </p>
+                        </button>
+                      )}
 
-                    {/* ✅ Upload Progress Bar */}
-                    {paymentUploading && (
-                      <div className="p-6 border-2 border-blue-200 bg-blue-50 rounded-lg">
-                        <div className="flex items-center gap-3 mb-3">
-                          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">
-                              Uploading payment screenshot...
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Please wait while we upload your file
-                            </p>
+                      {/* Upload Progress */}
+                      {paymentUploading && (
+                        <div className="p-6 border-2 border-blue-200 bg-blue-50 rounded-lg">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">
+                                Uploading payment screenshot...
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {paymentProgress}% complete
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-xs text-gray-600">
-                            <span>Progress</span>
-                            <span className="font-bold text-blue-900">{paymentProgress}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                            <motion.div
-                              className="bg-blue-600 h-full rounded-full"
-                              initial={{ width: 0 }}
-                              animate={{ width: `${paymentProgress}%` }}
-                              transition={{ duration: 0.3 }}
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all"
+                              style={{ width: `${paymentProgress}%` }}
                             />
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {/* ✅ Upload Success - Show Preview */}
-                    {paymentProof.file && paymentProof.url && !paymentUploading && (
-                      <div className="border-2 border-green-200 bg-green-50 rounded-lg p-4">
-                        <div className="flex items-start gap-3">
-                          {/* Preview Image */}
-                          <div className="flex-shrink-0">
-                            <Image
-                              src={paymentProof.url}
-                              alt="Payment screenshot"
-                              className="w-20 h-20 object-cover rounded-lg border-2 border-green-300"
-                            />
-                          </div>
-                          
-                          {/* File Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm text-gray-900 truncate">
-                                  {paymentProof.file.name}
-                                </p>
-                                <p className="text-xs text-gray-600">
-                                  {(paymentProof.file.size / 1024).toFixed(2)} KB
-                                </p>
-                              </div>
-                              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      {/* Upload Success */}
+                      {paymentProof.file && paymentProof.url && !paymentUploading && (
+                        <div className="border-2 border-green-200 bg-green-50 rounded-lg p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0">
+                              <Image
+                                src={paymentProof.url}
+                                alt="Payment screenshot"
+                                className="w-20 h-20 object-cover rounded-lg border-2 border-green-300"
+                              />
                             </div>
                             
-                            <div className="mt-2 flex gap-2">
-                              <button
-                                onClick={() => window.open(paymentProof.url, '_blank')}
-                                className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                View Full Size
-                              </button>
-                              <button
-                                onClick={() => {
-                                  updatePaymentProof({ file: null, url: '' });
-                                  setPaymentProgress(0);
-                                }}
-                                className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Remove
-                              </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm text-gray-900 truncate">
+                                    {paymentProof.file.name}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {(paymentProof.file.size / 1024).toFixed(2)} KB
+                                  </p>
+                                </div>
+                                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                              </div>
+                              
+                              <div className="mt-2 flex gap-2">
+                                <button
+                                  onClick={() => window.open(paymentProof.url, '_blank')}
+                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  View Full Size
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    updatePaymentProof({ file: null, url: '' });
+                                    setPaymentProgress(0);
+                                  }}
+                                  className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                           </div>
+                          
+                          <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-700" />
+                            <span className="text-xs text-green-800 font-medium">
+                              Payment screenshot uploaded successfully
+                            </span>
+                          </div>
                         </div>
-                        
-                        <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-700" />
-                          <span className="text-xs text-green-800 font-medium">
-                            Payment screenshot uploaded successfully
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Info Box */}
-                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-xs text-amber-800">
-                      <p className="font-semibold mb-1">Important:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>Make sure the screenshot clearly shows the payment amount and reference number</li>
-                        <li>The reference number must match the one you entered above</li>
-                        <li>Your order will be verified before processing</li>
-                      </ul>
+                  {/* Info Box */}
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-800">
+                        <p className="font-semibold mb-1">Important:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Make sure the screenshot clearly shows the payment amount and reference number</li>
+                          <li>The reference number must match the one you entered above</li>
+                          <li>Your order will be verified before processing</li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
+          );
 
       case 7:
         return (
