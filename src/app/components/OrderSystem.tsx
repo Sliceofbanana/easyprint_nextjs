@@ -1332,8 +1332,8 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                         <div className="relative w-48 h-48">
                           <Image
                             src={selectedPaymentMethod === 'gcash' 
-                              ? '/images/Gcash Qr.webp' 
-                              : '/images/Unionbank Qr.webp'
+                              ? '/images/GcashQr.webp' 
+                              : '/images/UnionbankQr.webp'
                             }
                             alt={`${selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} QR Code`}
                             fill
