@@ -1337,7 +1337,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                             }
                             alt={`${selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} QR Code`}
                             fill
-                            className="object-contain"
+                            className="w-full h-auto object-contain max-w-sm"
                             priority
                             unoptimized
                           />
