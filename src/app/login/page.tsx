@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
@@ -13,6 +13,17 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
+  // ✅ Prevent scrolling when login page is mounted
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,8 +56,8 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="fixed inset-0 flex items-center justify-center bg-gray-50 overflow-hidden z-50">
+      <div className="max-w-md w-full mx-4">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -54,7 +65,6 @@ const LoginPage = () => {
           className="bg-white rounded-2xl shadow-xl p-8"
         >
           <div className="text-center mb-8">
-            {/* ✅ FIXED: Logo section */}
             <div className="w-16 h-16 overflow-hidden mx-auto mb-4">
               <Image
                 src="/images/colored.webp"
@@ -75,7 +85,6 @@ const LoginPage = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Email
@@ -99,7 +108,6 @@ const LoginPage = () => {
               </div>
             </div>
 
-            {/* Password Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Password
@@ -135,7 +143,6 @@ const LoginPage = () => {
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -150,7 +157,6 @@ const LoginPage = () => {
             </button>
           </form>
 
-          {/* Sign Up Link */}
           <div className="mt-8 p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
             Don&apos;t have an account?{' '}
             <a href="/register" className="text-blue-900 font-medium hover:underline">

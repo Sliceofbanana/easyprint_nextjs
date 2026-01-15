@@ -547,7 +547,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
           <div className="flex border-b overflow-x-auto">
             {[
               { id: 'orders', label: 'Orders', icon: Package },
-              { id: 'settings', label: 'Settings', icon: Settings },
             ].map((tab) => (
               <button
                 key={tab.id}

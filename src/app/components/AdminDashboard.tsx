@@ -195,29 +195,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     }
   }, [toast, lastMessageCount]);
 
-    const stats = useMemo(() => {
-    const now = new Date();
-    let filteredOrders = orders;
+const stats = useMemo(() => {
+  const now = new Date();
+  let filteredOrders = orders;
 
-    // Filter orders based on report period
-    if (reportPeriod === 'daily') {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      filteredOrders = orders.filter(o => new Date(o.createdAt) >= today);
-    } else if (reportPeriod === 'weekly') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      filteredOrders = orders.filter(o => new Date(o.createdAt) >= weekAgo);
-    } else if (reportPeriod === 'monthly') {
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      filteredOrders = orders.filter(o => new Date(o.createdAt) >= monthStart);
-    }
+  // Filter orders based on report period
+  if (reportPeriod === 'daily') {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    filteredOrders = orders.filter(o => new Date(o.createdAt) >= today);
+  } else if (reportPeriod === 'weekly') {
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    filteredOrders = orders.filter(o => new Date(o.createdAt) >= weekAgo);
+  } else if (reportPeriod === 'monthly') {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    filteredOrders = orders.filter(o => new Date(o.createdAt) >= monthStart);
+  }
 
-    return {
-      totalOrders: filteredOrders.length,
-      totalRevenue: filteredOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
-      lowStock: inventory.filter(i => i.quantity <= i.minStockLevel).length,
-      unreadMessages: messages.filter(m => m.status === 'PENDING').length,
-    };
-  }, [orders, inventory, messages, reportPeriod]);
+  return {
+    totalOrders: filteredOrders.length,
+    totalRevenue: filteredOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
+    lowStock: inventory.filter(i => i.quantity <= i.minStockLevel).length,
+    unreadMessages: messages.filter(m => m.status === 'PENDING').length,
+    unreadNotifications: notifications.filter(n => !n.isRead).length,
+  };
+}, [orders, inventory, messages, reportPeriod, notifications]);
+
 
   // ✅ Memoized fetch notifications function
   const fetchNotifications = useCallback(async (showToast = false) => {
@@ -816,14 +818,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white rounded-xl shadow-lg border mb-8 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-lg border mb-8">
         <div className="flex border-b overflow-x-auto md:overflow-x-visible scrollbar-hide">
           {[
             { id: 'overview', label: 'Overview', icon: TrendingUp },
             { id: 'staff', label: 'Staff Management', icon: Users },
             { id: 'users', label: 'Users', icon: Users },
-            { id: 'inventory', label: 'Inventory', icon: Package },
-            { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadCount },
+            { id: 'notifications', label: 'Notifications', icon: Bell, badge: stats.unreadNotifications },
             { id: 'messages', label: 'Messages', icon: MessageSquare, badge: stats.unreadMessages },
             { id: 'settings', label: 'Settings', icon: Settings },
           ].map((tab) => (
@@ -982,6 +983,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     <h2 className="text-xl font-semibold">
                       Low Stock Alerts ({notifications.length})
                     </h2>
+                    {stats.unreadNotifications > 0 && ( 
+                      <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm font-bold rounded-full animate-pulse">
+                        {stats.unreadNotifications} 
+                      </span>
+                    )}
                     <div className="flex gap-3">
                       <button
                         onClick={async () => {

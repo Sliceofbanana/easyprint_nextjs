@@ -3,6 +3,71 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ messageId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true },
+    });
+
+    if (!user || (user.role !== 'ADMIN' && user.role !== 'STAFF')) {
+      return NextResponse.json({ error: 'Forbidden - Admin/Staff only' }, { status: 403 });
+    }
+
+    const { messageId } = await params;
+    const { status } = await req.json();
+
+    if (!status || !['PENDING', 'IN_PROGRESS', 'RESOLVED'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
+
+    const updatedMessage = await prisma.message.update({
+      where: { id: messageId },
+      data: { status },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        responses: {
+          include: {
+            respondedBy: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(updatedMessage);
+  } catch (error) {
+    console.error('❌ Error updating message status:', error);
+    return NextResponse.json(
+      { error: 'Failed to update message status' },
+      { status: 500 }
+    );
+  }
+}
+
+
 // ✅ POST - Admin/Staff responds to a customer message
 export async function POST(
   req: NextRequest,
