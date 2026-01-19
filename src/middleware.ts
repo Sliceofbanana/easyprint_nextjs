@@ -16,6 +16,7 @@ export async function middleware(request: NextRequest) {
     '/_next',
     '/images',
     '/favicon.ico',
+    '/site.webmanifest',
   ]
 
   if (publicPaths.some(path => pathname.startsWith(path))) {

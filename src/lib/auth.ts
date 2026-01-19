@@ -115,6 +115,15 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+
+        async redirect({ url, baseUrl }) {
+      // Use environment variable for subdomain
+      const productionUrl = process.env.NEXTAUTH_URL || baseUrl;
+      
+      if (url.startsWith("/")) return `${productionUrl}${url}`;
+      else if (new URL(url).origin === productionUrl) return url;
+      return productionUrl;
+    },
   },
   pages: {
     signIn: '/login',
