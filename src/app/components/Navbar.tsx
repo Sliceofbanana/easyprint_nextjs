@@ -22,7 +22,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="w-auto h-12 relative flex-shrink-0">
               <Image
-                src="/images/mq2-692025050cdb0.webp"
+                src="/images/logo.webp"
                 alt="MQ Printing Logo"
                 width={120}
                 height={38}
