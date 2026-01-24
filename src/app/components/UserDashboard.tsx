@@ -153,6 +153,7 @@ export default function UserDashboard({ user: initialUser }: UserDashboardProps)
   const getStatusInfo = (status: string) => {
     const info: Record<string, { label: string; icon: LucideIcon; color: string }> = {
       PENDING: { label: 'Awaiting Payment', icon: CreditCard, color: 'text-yellow-600' },
+      PAYMENT_RECEIVED: { label: 'Payment Confirmed', icon: CheckCircle, color: 'text-teal-600' },
       PROCESSING: { label: 'Processing', icon: Clock, color: 'text-blue-600' },
       READY: { label: 'Ready for Pickup', icon: Package, color: 'text-indigo-600' },
       ON_DELIVERY: { label: 'Out for Delivery', icon: Truck, color: 'text-purple-600' },
