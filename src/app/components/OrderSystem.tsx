@@ -1357,7 +1357,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                             </p>
                             <p className="text-sm mt-1">
                               <span className="text-gray-600">Name:</span>{' '}
-                              <span className="font-semibold">MQ Printing Services</span>
+                              <span className="font-semibold">Michael Quijada Printing Services</span>
                             </p>
                           </>
                         ) : (
