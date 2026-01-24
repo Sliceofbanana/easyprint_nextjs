@@ -1105,7 +1105,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   onChange={(e) => setOrderDetails({ ...orderDetails, deliveryType: e.target.value })}
                   className="w-full p-3 border rounded-lg"
                 >
-                  <option value="pickup">Pickup (FREE)</option>
+                  <option value="pickup">Pickup (In person or via lalamove/maxim)</option>
                   <option value="campus">Campus Delivery (+₱10)</option>
                 </select>
               </div>
@@ -1368,7 +1368,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                             </p>
                             <p className="text-sm mt-1">
                               <span className="text-gray-600">Account Name:</span>{' '}
-                              <span className="font-semibold">MQ Printing Services</span>
+                              <span className="font-semibold">Michael Quijada Printing Services</span>
                             </p>
                           </>
                         )}
@@ -1393,7 +1393,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">
-                        GCash Reference Number <span className="text-red-500">*</span>
+                        Reference Number <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"

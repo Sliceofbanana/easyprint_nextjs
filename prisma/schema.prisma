@@ -201,6 +201,7 @@ enum BindingType {
 
 enum OrderStatus {
   PENDING
+  PAYMENT_RECEIVED
   PROCESSING
   READY
   ON_DELIVERY

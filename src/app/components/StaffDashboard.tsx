@@ -349,6 +349,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   const stats = {
     total: orders.length,
     pending: orders.filter((o) => o.status === 'PENDING').length,
+    paymentReceived: orders.filter((o) => o.status === 'PAYMENT_RECEIVED').length,
     processing: orders.filter((o) => o.status === 'PROCESSING').length,
     completedToday: orders.filter(
       (o) =>
@@ -367,6 +368,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
               {[
                 { title: 'Total Orders', value: stats.total, icon: Package, color: 'text-blue-600' },
                 { title: 'Pending', value: stats.pending, icon: Clock, color: 'text-orange-600' },
+                { title: 'Payment Received', value: stats.paymentReceived, icon: CheckCircle, color: 'text-teal-600' },
                 { title: 'Processing', value: stats.processing, icon: Package, color: 'text-blue-600' },
                 { title: 'Completed Today', value: stats.completedToday, icon: CheckCircle, color: 'text-green-600' },
               ].map((stat, i) => (
@@ -613,6 +615,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                       >
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                           s.value === 'PENDING' ? 'bg-yellow-500' :
+                          s.value === 'PAYMENT_RECEIVED' ? 'bg-teal-500' :
                           s.value === 'PROCESSING' ? 'bg-blue-500' :
                           s.value === 'READY' ? 'bg-indigo-500' :
                           s.value === 'ON_DELIVERY' ? 'bg-orange-500' :
