@@ -350,7 +350,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   const stats = {
     total: orders.length,
     pending: orders.filter((o) => o.status === 'PENDING').length,
-    paymentReceived: orders.filter((o) => o.status === 'PAYMENT_RECEIVED').length,
     processing: orders.filter((o) => o.status === 'PROCESSING').length,
     completedToday: orders.filter(
       (o) =>
@@ -369,7 +368,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
               {[
                 { title: 'Total Orders', value: stats.total, icon: Package, color: 'text-blue-600' },
                 { title: 'Pending', value: stats.pending, icon: Clock, color: 'text-orange-600' },
-                { title: 'Payment Received', value: stats.paymentReceived, icon: CheckCircle, color: 'text-teal-600' },
                 { title: 'Processing', value: stats.processing, icon: Package, color: 'text-blue-600' },
                 { title: 'Completed Today', value: stats.completedToday, icon: CheckCircle, color: 'text-green-600' },
               ].map((stat, i) => (
