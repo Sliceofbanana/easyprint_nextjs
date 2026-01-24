@@ -68,6 +68,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   const statusOptions = [
     { value: 'all', label: 'All Orders' },
     { value: 'PENDING', label: 'Pending' },
+    { value: 'PAYMENT_RECEIVED', label: 'Payment Received' },
     { value: 'PROCESSING', label: 'Processing' },
     { value: 'READY', label: 'Ready for Pickup' },
     { value: 'ON_DELIVERY', label: 'Out for Delivery' },
