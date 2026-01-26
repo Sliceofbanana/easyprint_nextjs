@@ -61,16 +61,19 @@ export default function UserDashboard({ user: initialUser }: UserDashboardProps)
 
   useEffect(() => {
     if (session?.user) {
-      setUserData({
-        name: session.user.name || undefined,
-        email: session.user.email || '',
-      });
+      const newName = session.user.name || undefined;
+      const newEmail = session.user.email || '';
+      
+      // Only update if data actually changed
+      if (userData.name !== newName || userData.email !== newEmail) {
+        setUserData({ name: newName, email: newEmail });
+      }
     }
-  }, [session]);
+  }, [session?.user?.name, session?.user?.email]);
 
   useEffect(() => {
     const handleProfileUpdate = async () => {
-      console.log('🔄 Profile updated event received, refreshing session...');
+      console.log('🔄 Profile updated event received');
       const updated = await update();
       
       if (updated?.user) {
@@ -85,31 +88,6 @@ export default function UserDashboard({ user: initialUser }: UserDashboardProps)
     window.addEventListener('profileUpdated', handleProfileUpdate);
     return () => window.removeEventListener('profileUpdated', handleProfileUpdate);
   }, [update]);
-
-  useEffect(() => {
-    const refreshSession = async () => {
-      try {
-        const updated = await update();
-        
-        if (updated?.user && updated.user.name !== userData.name) {
-          console.log('🔄 Name changed detected:', {
-            old: userData.name,
-            new: updated.user.name
-          });
-          
-          setUserData({
-            name: updated.user.name || undefined,
-            email: updated.user.email || '',
-          });
-        }
-      } catch (error) {
-        console.error('Session refresh error:', error);
-      }
-    };
-
-    const sessionInterval = setInterval(refreshSession, 5000);
-    return () => clearInterval(sessionInterval);
-  }, [update, userData.name]);
 
   useEffect(() => {
     const fetchOrders = async () => {
