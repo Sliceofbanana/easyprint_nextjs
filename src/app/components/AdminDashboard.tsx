@@ -21,9 +21,11 @@ import {
   CheckCircle,
   Save,
   Send,
-  Clock,
+  Clock,  
+  Archive,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { isCurrentMonth } from '../../lib/archive';
 
 // ✅ Define the expected props
 interface AdminDashboardProps {
@@ -138,6 +140,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'notifications' | 'messages' | 'products' | 'staff' | 'users' | 'settings'>('overview');
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  const [archivedOrders, setArchivedOrders] = useState<Order[]>([]);
+  const [orderViewTab, setOrderViewTab] = useState<'current' | 'archive'>('current');
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,6 +168,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [messageFilter, setMessageFilter] = useState<'all' | 'PENDING' | 'IN_PROGRESS' | 'RESOLVED'>('all');
   const [users, setUsers] = useState<User[]>([]);
   
+
+    // ✅ Filter orders into active (current month) and archived (previous months)
+  useEffect(() => {
+    const current = orders.filter((o) => isCurrentMonth(new Date(o.createdAt)));
+    const archived = orders.filter((o) => !isCurrentMonth(new Date(o.createdAt)));
+    setActiveOrders(current);
+    setArchivedOrders(archived);
+  }, [orders]);
+
+
   // ✅ Memoized fetch messages function
   const fetchMessages = useCallback(async (showToast = false) => {
     try {
@@ -195,30 +210,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     }
   }, [toast, lastMessageCount]);
 
-const stats = useMemo(() => {
-  const now = new Date();
-  let filteredOrders = orders;
-
-  // Filter orders based on report period
-  if (reportPeriod === 'daily') {
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    filteredOrders = orders.filter(o => new Date(o.createdAt) >= today);
-  } else if (reportPeriod === 'weekly') {
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    filteredOrders = orders.filter(o => new Date(o.createdAt) >= weekAgo);
-  } else if (reportPeriod === 'monthly') {
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    filteredOrders = orders.filter(o => new Date(o.createdAt) >= monthStart);
-  }
+  const stats = useMemo(() => {
+    const now = new Date();
+    const filteredOrders = activeOrders.filter((order) => {
+      const orderDate = new Date(order.createdAt);
+      if (reportPeriod === 'daily') {
+        return orderDate.toDateString() === now.toDateString();
+      } else if (reportPeriod === 'weekly') {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return orderDate >= weekAgo;
+      } else {
+        return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+      }
+    });
 
   return {
-    totalOrders: filteredOrders.length,
-    totalRevenue: filteredOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
-    lowStock: inventory.filter(i => i.quantity <= i.minStockLevel).length,
-    unreadMessages: messages.filter(m => m.status === 'PENDING').length,
-    unreadNotifications: notifications.filter(n => !n.isRead).length,
+      totalOrders: filteredOrders.length,
+      activeOrders: filteredOrders.filter((o) => !['COMPLETED', 'CANCELLED'].includes(o.status)).length,
+      completedOrders: filteredOrders.filter((o) => o.status === 'COMPLETED').length,
+      totalRevenue: filteredOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
+      lowStock: inventory.filter(i => i.quantity <= i.minStockLevel).length,
+      unreadMessages: messages.filter(m => m.status === 'PENDING').length,
+      unreadNotifications: notifications.filter(n => !n.isRead).length,
   };
-}, [orders, inventory, messages, reportPeriod, notifications]);
+}, [activeOrders, inventory, messages, reportPeriod, notifications]);
 
 
   // ✅ Memoized fetch notifications function
@@ -272,12 +287,6 @@ const stats = useMemo(() => {
         if (ordersRes.ok) {
           const ordersData = await ordersRes.json();
           setOrders(ordersData);
-        }
-
-        const inventoryRes = await fetch('/api/admin/inventory');
-        if (inventoryRes.ok) {
-          const inventoryData = await inventoryRes.json();
-          setInventory(inventoryData);
         }
 
         const messagesRes = await fetch('/api/admin/messages');
@@ -420,22 +429,21 @@ const stats = useMemo(() => {
   }, [messages, messageFilter]);
 
   // ✅ ADD: Export sales report function
-  const exportSalesReport = useCallback(() => {
-    try {
-      // Filter orders based on report period
-      const now = new Date();
-      let filteredOrders = orders;
+const exportSalesReport = useCallback((includeArchive = false) => {
+  try {
+    const now = new Date();
+    let filteredOrders = includeArchive ? orders : activeOrders;
 
-      if (reportPeriod === 'daily') {
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        filteredOrders = orders.filter(o => new Date(o.createdAt) >= today);
-      } else if (reportPeriod === 'weekly') {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        filteredOrders = orders.filter(o => new Date(o.createdAt) >= weekAgo);
-      } else if (reportPeriod === 'monthly') {
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        filteredOrders = orders.filter(o => new Date(o.createdAt) >= monthStart);
-      }
+    if (reportPeriod === 'daily') {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= today);
+    } else if (reportPeriod === 'weekly') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= weekAgo);
+    } else if (reportPeriod === 'monthly') {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= monthStart);
+    }
 
       // Prepare data for export
       const exportData = filteredOrders.map(order => ({
@@ -476,7 +484,7 @@ const stats = useMemo(() => {
         variant: 'destructive',
       });
     }
-  }, [orders, reportPeriod, toast]);
+}, [orders, activeOrders, reportPeriod, toast]);
 
   // ✅ UPDATE: Initial data fetch to include users
   useEffect(() => {
@@ -730,13 +738,22 @@ const stats = useMemo(() => {
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
             <p className="text-gray-600">Welcome back, {user.email}</p>
           </div>
-          <button
-            onClick={exportSalesReport}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download className="w-5 h-5" />
-            Export Report
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportSalesReport(false)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download className="w-5 h-5" />
+              Export Current Month
+            </button>
+            <button
+              onClick={() => exportSalesReport(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              <Download className="w-5 h-5" />
+              Export All Orders
+            </button>
+          </div>
         </div>
 
         {/* Report Period Selector */}
@@ -918,57 +935,181 @@ const stats = useMemo(() => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                 >
-                <h2 className="text-xl font-semibold mb-4">Recent Orders</h2>
-                <div className="space-y-4">
+                  <h2 className="text-xl font-semibold mb-4">Recent Orders</h2>
+                  
+                  {/* ✅ Add Tab Navigation */}
+                  <div className="mb-4 border-b">
+                    <nav className="-mb-px flex space-x-8">
+                      <button
+                        onClick={() => setOrderViewTab('current')}
+                        className={`${
+                          orderViewTab === 'current'
+                            ? 'border-blue-900 text-blue-900'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                      >
+                        <TrendingUp className="w-5 h-5" />
+                        Current Month
+                        <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-900 rounded-full text-xs font-bold">
+                          {activeOrders.length}
+                        </span>
+                      </button>
+                      
+                      <button
+                        onClick={() => setOrderViewTab('archive')}
+                        className={`${
+                          orderViewTab === 'archive'
+                            ? 'border-blue-900 text-blue-900'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                      >
+                        <Archive className="w-5 h-5" />
+                        Archive
+                        <span className="ml-1 px-2 py-0.5 bg-gray-200 text-gray-700 rounded-full text-xs font-bold">
+                          {archivedOrders.length}
+                        </span>
+                      </button>
+                    </nav>
+                  </div>
 
-                  {/* In the orders section */}
-                  {orders.slice(0, 5).map((order) => (
-                    <div key={order.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold">{order.orderNumber}</p>
-                          <p className="text-sm text-gray-600">{order.customerName}</p>
-                          <p className="text-xs text-gray-500">{order.customerEmail}</p>
-                          
-                          {/* ✅ Add view/download buttons */}
-                          {order.fileUrl && (
-                            <div className="flex gap-3 mt-2">
-                              <button
-                                onClick={() => {
-                                  if (order.fileUrl) {
-                                    window.open(order.fileUrl, '_blank');
-                                  }
-                                }}
-                                className="text-blue-600 hover:underline text-xs flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                View File
-                              </button>
-                              <button
-                                onClick={() => downloadDocument(order)}
-                                className="text-green-600 hover:underline text-xs flex items-center gap-1"
-                              >
-                                <Download className="w-3 h-3" />
-                                Download
-                              </button>
+                  <div className="space-y-4">
+                    {orderViewTab === 'current' ? (
+                      // ✅ Current Month Orders
+                      activeOrders.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-lg">
+                          <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-600">No orders for this month</p>
+                        </div>
+                      ) : (
+                        activeOrders.slice(0, 10).map((order) => (
+                          <div key={order.id} className="p-4 border rounded-lg hover:bg-gray-50">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-semibold">{order.orderNumber}</p>
+                                <p className="text-sm text-gray-600">{order.customerName}</p>
+                                <p className="text-xs text-gray-500">{order.customerEmail}</p>
+                                
+                                {order.fileUrl && (
+                                  <div className="flex gap-3 mt-2">
+                                    <button
+                                      onClick={() => {
+                                        if (order.fileUrl) {
+                                          window.open(order.fileUrl, '_blank');
+                                        }
+                                      }}
+                                      className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      View
+                                    </button>
+                                    <button
+                                      onClick={() => downloadDocument(order)}
+                                      className="text-green-600 hover:underline text-xs flex items-center gap-1"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      Download
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-blue-900">₱{(order.totalPrice || 0).toFixed(2)}</p>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                                  order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                                  order.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {order.status}
+                                </span>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {new Date(order.createdAt).toLocaleDateString()}
+                                </p>
+                              </div>
                             </div>
-                          )}
+                          </div>
+                        ))
+                      )
+                    ) : (
+                      // ✅ Archived Orders - Grouped by Month
+                      archivedOrders.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-lg">
+                          <Archive className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-600">No archived orders found</p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold">₱{order.totalPrice.toFixed(2)}</p>
-                          <span className={`inline-block px-3 py-1 text-xs font-medium rounded-lg mt-1 ${
-                            order.status === 'COMPLETED'
-                              ? 'bg-green-100 text-green-700'
-                              : order.status === 'PENDING'
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                      ) : (
+                        Object.entries(
+                          archivedOrders.reduce((groups: Record<string, Order[]>, order) => {
+                            const monthKey = new Date(order.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                            });
+                            if (!groups[monthKey]) groups[monthKey] = [];
+                            groups[monthKey].push(order);
+                            return groups;
+                          }, {})
+                        ).map(([month, monthOrders]) => (
+                          <div key={month} className="mb-6 last:mb-0">
+                            <div className="bg-gray-100 px-4 py-3 rounded-t-lg flex items-center gap-2 border-b">
+                              <Archive className="w-5 h-5 text-gray-600" />
+                              <h3 className="font-bold text-gray-800">{month}</h3>
+                              <span className="ml-auto text-sm text-gray-600">
+                                {monthOrders.length} order{monthOrders.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div className="border border-t-0 rounded-b-lg overflow-hidden divide-y">
+                              {monthOrders.map((order) => (
+                                <div key={order.id} className="p-4 hover:bg-gray-50">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <p className="font-semibold">{order.orderNumber}</p>
+                                      <p className="text-sm text-gray-600">{order.customerName}</p>
+                                      <p className="text-xs text-gray-500">
+                                        {new Date(order.createdAt).toLocaleString()}
+                                      </p>
+                                      
+                                      {order.fileUrl && (
+                                        <div className="flex gap-3 mt-2">
+                                          <button
+                                            onClick={() => {
+                                              if (order.fileUrl) {
+                                                window.open(order.fileUrl, '_blank');
+                                              }
+                                            }}
+                                            className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                                          >
+                                            <Eye className="w-3 h-3" />
+                                            View
+                                          </button>
+                                          <button
+                                            onClick={() => downloadDocument(order)}
+                                            className="text-green-600 hover:underline text-xs flex items-center gap-1"
+                                          >
+                                            <Download className="w-3 h-3" />
+                                            Download
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="font-bold text-blue-900">₱{(order.totalPrice || 0).toFixed(2)}</p>
+                                      <span className={`text-xs px-2 py-1 rounded-full ${
+                                        order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                                        order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                                        order.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700' :
+                                        'bg-gray-100 text-gray-700'
+                                      }`}>
+                                        {order.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )
+                    )}
                   </div>
                 </motion.div>
               )}

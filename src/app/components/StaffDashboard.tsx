@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package,
@@ -16,11 +16,15 @@ import {
   Receipt,
   Settings,
   User,
-  AlertTriangle
+  AlertTriangle,
+  TrendingUp,
+  Archive,
+  Trash2,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Use-Toast';
 import LowStockModal from './ui/LowStockModal';
 import Image from 'next/image';
+import { isCurrentMonth } from '../../lib/archive';
 
 // --- Types ---
 interface StaffDashboardProps {
@@ -50,17 +54,23 @@ interface Order {
   bindingType?: string;
   notes?: string;
   adminNotes?: string;
+  serviceType?: string;
+  filesDeletedAt?: string;
+  paymentProofUrl?: string;
+  paymentReference?: string;
 }
 
 const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  const [archivedOrders, setArchivedOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'orders' | 'settings'>('orders');
+  const [activeTab, setActiveTab] = useState<'current' | 'archive'>('current');
   const [showLowStockModal, setShowLowStockModal] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, right: 'auto' as 'auto' | number });
@@ -75,40 +85,61 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
     { value: 'COMPLETED', label: 'Completed' },
     { value: 'CANCELLED', label: 'Cancelled' },
   ];
+  
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/orders/all');
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      const data = await response.json();
+      
+      setOrders(data || []);
+      
+      // ✅ Filter current month orders
+      const current = data.filter((o: Order) => 
+        isCurrentMonth(new Date(o.createdAt))
+      );
+      
+      // ✅ Filter archived orders (previous months)
+      const archived = data.filter((o: Order) => 
+        !isCurrentMonth(new Date(o.createdAt))
+      );
+      
+      setActiveOrders(current);
+      setArchivedOrders(archived);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load orders',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/orders');
-        if (!response.ok) throw new Error('Failed to fetch orders');
-        const data = await response.json();
-        setOrders(data || []);
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load orders',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchOrders();
 
     const interval = setInterval(() => {
-      fetch('/api/orders')
+      fetch('/api/orders/all')
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data) setOrders(data);
+          if (data) {
+            setOrders(data);
+            const current = data.filter((o: Order) => isCurrentMonth(new Date(o.createdAt)));
+            const archived = data.filter((o: Order) => !isCurrentMonth(new Date(o.createdAt)));
+            setActiveOrders(current);
+            setArchivedOrders(archived);
+          }
         })
         .catch(console.error);
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(interval);
-  }, [toast]);
+  }, [fetchOrders]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -121,7 +152,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openDropdownId]);
 
-  // ✅ Calculate dropdown position when opened
   useEffect(() => {
     if (openDropdownId) {
       const calculatePosition = () => {
@@ -129,16 +159,15 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
         if (!buttonElement) return;
 
         const rect = buttonElement.getBoundingClientRect();
-        const dropdownHeight = 210; // Approximate max height
-        const gap = 4; // Small gap between button and dropdown
+        const dropdownHeight = 210;
+        const gap = 4;
 
-        // Check if there's space below
         const spaceBelow = window.innerHeight - rect.bottom;
         const shouldOpenUpward = spaceBelow < dropdownHeight;
 
         setDropdownPosition({ 
           top: shouldOpenUpward ? rect.top - dropdownHeight - gap : rect.bottom + gap,
-          left: rect.left, // Left-aligned (or use rect.right - 224 for right-aligned)
+          left: rect.left,
           right: 'auto' 
         });
       };
@@ -156,7 +185,8 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   }, [openDropdownId]);
 
   useEffect(() => {
-    let filtered = orders;
+    const ordersToFilter = activeTab === 'current' ? activeOrders : archivedOrders;
+    let filtered = ordersToFilter;
 
     if (searchTerm) {
       filtered = filtered.filter(
@@ -172,24 +202,48 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
     }
 
     setFilteredOrders(filtered);
-  }, [orders, searchTerm, statusFilter]);
+  }, [activeOrders, archivedOrders, searchTerm, statusFilter, activeTab]);
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
-      const response = await fetch(`/api/orders/${orderId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+    const response = await fetch(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+
+    if (response.ok) {
+      fetchOrders();
+      toast({ title: 'Status Updated', description: `Order status changed to ${newStatus}` });
+      setOpenDropdownId(null);
+    }
+  };
+
+  const handleDeleteFiles = async (orderId: string) => {
+    if (!confirm('Are you sure you want to delete files for this archived order? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/orders/${orderId}/delete-files`, {
+        method: 'POST',
       });
 
-      if (response.ok) {
-        setOrders((prev) =>
-          prev.map((order) =>
-            order.id === orderId ? { ...order, status: newStatus } : order
-          )
-        );
-        toast({ title: 'Status Updated', description: `Order status changed to ${newStatus}` });
-        setOpenDropdownId(null);
-      }
+      if (!response.ok) throw new Error('Failed to delete files');
+
+      toast({
+        title: 'Success',
+        description: 'Order files deleted successfully',
+      });
+
+      fetchOrders();
+    } catch (error) {
+      console.error('Error deleting files:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete order files',
+        variant: 'destructive',
+      });
+    }
   };
 
   const downloadDocument = async (order: Order) => {
@@ -206,7 +260,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
       toast({
         title: 'Downloading',
         description: 'Starting download...',
-        variant: 'info'
       });
 
       const encodedUrl = encodeURIComponent(order.fileUrl);
@@ -230,7 +283,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
       toast({
         title: 'Downloaded',
         description: `${link.download} downloaded successfully`,
-        variant: 'success',
       });
     } catch (error) {
       console.error('Download error:', error);
@@ -243,69 +295,68 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   };
 
   const printReceipt = (order: Order) => {
-    try{
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast({
-        title: 'Error',
-        description: 'Please allow popups to print',
-        variant: 'destructive',
-      });
-      return;
-    }
+    try {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast({
+          title: 'Error',
+          description: 'Please allow popups to print',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Order #${order.orderNumber}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1e3a8a; padding-bottom: 20px; }
-            .logo { font-size: 24px; font-weight: bold; color: #1e3a8a; }
-            .section { margin: 20px 0; }
-            .section-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #1e3a8a; }
-            .info-row { display: flex; justify-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
-            .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 20px; padding: 15px; background: #eff6ff; border-radius: 8px; }
-            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">🖨️ MQ Printing - EasyPrint</div>
-            <div>Order #${order.orderNumber || order.id}</div>
-          </div>
-          <div class="section">
-            <div class="section-title">Customer Information</div>
-            <div class="info-row"><span>Name:</span><span>${order.customerName}</span></div>
-            <div class="info-row"><span>Email:</span><span>${order.customerEmail}</span></div>
-            ${order.customerPhone ? `<div class="info-row"><span>Phone:</span><span>${order.customerPhone}</span></div>` : ''}
-          </div>
-          <div class="section">
-            <div class="section-title">Order Details</div>
-            ${order.paperSize ? `<div class="info-row"><span>Paper Size:</span><span>${order.paperSize}</span></div>` : ''}
-            ${order.colorType ? `<div class="info-row"><span>Color Type:</span><span>${order.colorType}</span></div>` : ''}
-            ${order.copies ? `<div class="info-row"><span>Copies:</span><span>${order.copies}</span></div>` : ''}
-            ${order.pages ? `<div class="info-row"><span>Pages:</span><span>${order.pages}</span></div>` : ''}
-          </div>
-          <div class="total">Total Amount: ₱${order.totalPrice.toFixed(2)}</div>
-          <div class="footer">
-            <p>Thank you for choosing MQ Printing!</p>
-            <p>For questions, contact us at support@mqprinting.com</p>
-          </div>
-        </body>
-      </html>
-    `;
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Order #${order.orderNumber}</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1e3a8a; padding-bottom: 20px; }
+              .logo { font-size: 24px; font-weight: bold; color: #1e3a8a; }
+              .section { margin: 20px 0; }
+              .section-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #1e3a8a; }
+              .info-row { display: flex; justify-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+              .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 20px; padding: 15px; background: #eff6ff; border-radius: 8px; }
+              .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #6b7280; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">🖨️ MQ Printing - EasyPrint</div>
+              <div>Order #${order.orderNumber || order.id}</div>
+            </div>
+            <div class="section">
+              <div class="section-title">Customer Information</div>
+              <div class="info-row"><span>Name:</span><span>${order.customerName}</span></div>
+              <div class="info-row"><span>Email:</span><span>${order.customerEmail}</span></div>
+              ${order.customerPhone ? `<div class="info-row"><span>Phone:</span><span>${order.customerPhone}</span></div>` : ''}
+            </div>
+            <div class="section">
+              <div class="section-title">Order Details</div>
+              ${order.paperSize ? `<div class="info-row"><span>Paper Size:</span><span>${order.paperSize}</span></div>` : ''}
+              ${order.colorType ? `<div class="info-row"><span>Color Type:</span><span>${order.colorType}</span></div>` : ''}
+              ${order.copies ? `<div class="info-row"><span>Copies:</span><span>${order.copies}</span></div>` : ''}
+              ${order.pages ? `<div class="info-row"><span>Pages:</span><span>${order.pages}</span></div>` : ''}
+            </div>
+            <div class="total">Total Amount: ₱${order.totalPrice.toFixed(2)}</div>
+            <div class="footer">
+              <p>Thank you for choosing MQ Printing!</p>
+              <p>For questions, contact us at support@mqprinting.com</p>
+            </div>
+          </body>
+        </html>
+      `;
 
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-      
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
-
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+        
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
     } catch (error) {  
       console.error('Print error:', error);
       toast({
@@ -315,7 +366,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
       });
     }
   };
-
 
   const extractPaymentInfo = (adminNotes?: string) => {
     if (!adminNotes) return null;
@@ -340,6 +390,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
   const getStatusColor = (status: string) =>
     ({
       PENDING: 'bg-yellow-100 text-yellow-700',
+      PAYMENT_RECEIVED: 'bg-teal-100 text-teal-700',
       PROCESSING: 'bg-blue-100 text-blue-700',
       READY: 'bg-indigo-100 text-indigo-700',
       ON_DELIVERY: 'bg-orange-100 text-orange-700',
@@ -348,170 +399,14 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
     }[status] || 'bg-gray-200 text-gray-800');
 
   const stats = {
-    total: orders.length,
-    pending: orders.filter((o) => o.status === 'PENDING').length,
-    processing: orders.filter((o) => o.status === 'PROCESSING').length,
-    completedToday: orders.filter(
+    total: activeOrders.length,
+    pending: activeOrders.filter((o) => o.status === 'PENDING').length,
+    processing: activeOrders.filter((o) => o.status === 'PROCESSING').length,
+    completedToday: activeOrders.filter(
       (o) =>
         o.status === 'COMPLETED' &&
         new Date(o.updatedAt).toDateString() === new Date().toDateString()
     ).length,
-  };
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'orders':
-        return (
-          <div>
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              {[
-                { title: 'Total Orders', value: stats.total, icon: Package, color: 'text-blue-600' },
-                { title: 'Pending', value: stats.pending, icon: Clock, color: 'text-orange-600' },
-                { title: 'Processing', value: stats.processing, icon: Package, color: 'text-blue-600' },
-                { title: 'Completed Today', value: stats.completedToday, icon: CheckCircle, color: 'text-green-600' },
-              ].map((stat, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="bg-white p-6 rounded-xl shadow-lg border"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">{stat.title}</p>
-                      <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-                    </div>
-                    <stat.icon className={`w-8 h-8 ${stat.color}`} />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Filters */}
-            <div className="bg-white p-6 rounded-xl shadow-lg border mb-8">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by Order ID or Name..."
-                    className="w-full pl-10 pr-4 py-3 border rounded-lg"
-                  />
-                </div>
-                <div className="relative md:w-64">
-                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border rounded-lg appearance-none"
-                  >
-                    {statusOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Orders List */}
-            <div className="bg-white rounded-xl shadow-lg border">
-              <div className="p-6 border-b">
-                <h2 className="text-xl font-semibold">Orders ({filteredOrders.length})</h2>
-              </div>
-              <div className="divide-y">
-                {filteredOrders.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
-                    <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No orders found.</p>
-                  </div>
-                ) : (
-                  filteredOrders.map((order, index) => (
-                    <div
-                      key={order.id}
-                      className="p-6 hover:bg-gray-50 relative"
-                      style={{ 
-                        position: 'relative',
-                        zIndex: filteredOrders.length - index
-                      }}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex-1 min-w-[200px]">
-                          <h3 className="font-semibold">{order.orderNumber || `#${order.id}`}</h3>
-                          <p className="text-sm text-gray-600">{order.customerName}</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(order.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <p className="font-semibold">₱{order.totalPrice.toFixed(2)}</p>
-                          
-                          {/* ✅ Status Dropdown with data-order-id */}
-                          <div className="relative status-dropdown" data-order-id={order.id}>
-                            <button
-                              onClick={() => setOpenDropdownId(openDropdownId === order.id ? null : order.id)}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-lg ${getStatusColor(order.status)} flex items-center gap-2 hover:opacity-80 transition-opacity`}
-                            >
-                              {getStatusLabel(order.status)} <ChevronDown size={14} />
-                            </button>
-                          </div>
-
-                          <button
-                            onClick={() => downloadDocument(order)}
-                            disabled={!order.fileUrl}
-                            className={`p-2 rounded-lg transition-colors ${
-                              order.fileUrl
-                                ? 'text-green-600 hover:bg-green-50'
-                                : 'text-gray-300 cursor-not-allowed'
-                            }`}
-                            title="Download Document"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => setSelectedOrder(order)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'settings':
-        return (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-6 rounded-xl shadow-lg border"
-          >
-            <h2 className="text-xl font-semibold mb-6">Settings</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Email Notifications</label>
-                <input type="checkbox" className="mr-2" />
-                <span className="text-sm text-gray-600">Receive email notifications for new orders</span>
-              </div>
-            </div>
-          </motion.div>
-        );
-
-      default:
-        return null;
-    }
   };
 
   if (loading) {
@@ -543,33 +438,245 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
             <span>Low Stock Alert</span>
           </button>
         </div>
-        
-        <div className="bg-white rounded-xl shadow-lg border mb-8">
-          <div className="flex border-b overflow-x-auto">
-            {[
-              { id: 'orders', label: 'Orders', icon: Package },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'orders' | 'settings')}
-                className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'text-blue-900 border-b-2 border-blue-900 bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <tab.icon className="w-5 h-5" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
 
-          <div className="p-6">
-            {renderTabContent()}
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {[
+            { title: 'Total Orders', value: stats.total, icon: Package, color: 'text-blue-600' },
+            { title: 'Pending', value: stats.pending, icon: Clock, color: 'text-orange-600' },
+            { title: 'Processing', value: stats.processing, icon: Package, color: 'text-blue-600' },
+            { title: 'Completed Today', value: stats.completedToday, icon: CheckCircle, color: 'text-green-600' },
+          ].map((stat, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-white p-6 rounded-xl shadow-lg border"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">{stat.title}</p>
+                  <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                </div>
+                <stat.icon className={`w-8 h-8 ${stat.color}`} />
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* ✅ Tab Navigation */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('current')}
+                className={`${
+                  activeTab === 'current'
+                    ? 'border-blue-900 text-blue-900'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              >
+                <TrendingUp className="w-5 h-5" />
+                Current Month Orders
+                <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-900 rounded-full text-xs font-bold">
+                  {activeOrders.length}
+                </span>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('archive')}
+                className={`${
+                  activeTab === 'archive'
+                    ? 'border-blue-900 text-blue-900'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              >
+                <Archive className="w-5 h-5" />
+                Archive
+                <span className="ml-1 px-2 py-0.5 bg-gray-200 text-gray-700 rounded-full text-xs font-bold">
+                  {archivedOrders.length}
+                </span>
+              </button>
+            </nav>
           </div>
         </div>
 
-        {/* ✅ PORTAL DROPDOWN - Fixed positioning */}
+        {/* Filters */}
+        <div className="bg-white p-6 rounded-xl shadow-lg border mb-8">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by Order ID or Name..."
+                className="w-full pl-10 pr-4 py-3 border rounded-lg"
+              />
+            </div>
+            <div className="relative md:w-64">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border rounded-lg appearance-none"
+              >
+                {statusOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* ✅ Orders Display with Archive Support */}
+        <div className="bg-white rounded-xl shadow-lg border">
+          <div className="p-6 border-b">
+            <h2 className="text-xl font-semibold">
+              {activeTab === 'current' ? 'Current Month Orders' : 'Archived Orders'} ({filteredOrders.length})
+            </h2>
+          </div>
+
+          {filteredOrders.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p>{activeTab === 'current' ? 'No orders found for this month' : 'No archived orders found'}</p>
+            </div>
+          ) : activeTab === 'archive' ? (
+            // ✅ Archive View - Grouped by Month
+            <div className="p-6">
+              {Object.entries(
+                filteredOrders.reduce((groups: Record<string, Order[]>, order) => {
+                  const monthKey = new Date(order.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                  });
+                  if (!groups[monthKey]) groups[monthKey] = [];
+                  groups[monthKey].push(order);
+                  return groups;
+                }, {})
+              ).map(([month, monthOrders]) => (
+                <div key={month} className="mb-6 last:mb-0">
+                  <div className="bg-gray-100 px-4 py-3 rounded-t-lg flex items-center gap-2 border-b">
+                    <Archive className="w-5 h-5 text-gray-600" />
+                    <h3 className="font-bold text-gray-800">{month}</h3>
+                    <span className="ml-auto text-sm text-gray-600">
+                      {monthOrders.length} order{monthOrders.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="border border-t-0 rounded-b-lg overflow-hidden divide-y">
+                    {monthOrders.map((order) => (
+                      <div key={order.id} className="p-6 hover:bg-gray-50">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div className="flex-1 min-w-[200px]">
+                            <h3 className="font-semibold">{order.orderNumber || `#${order.id}`}</h3>
+                            <p className="text-sm text-gray-600">{order.customerName}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(order.createdAt).toLocaleString()}
+                            </p>
+                            {order.filesDeletedAt && (
+                              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                <Trash2 className="w-3 h-3" />
+                                Files deleted on {new Date(order.filesDeletedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="font-semibold">₱{order.totalPrice.toFixed(2)}</p>
+                            <span className={`px-3 py-1.5 text-sm font-medium rounded-lg ${getStatusColor(order.status)}`}>
+                              {getStatusLabel(order.status)}
+                            </span>
+                            
+                            {!order.filesDeletedAt && (
+                              <button
+                                onClick={() => handleDeleteFiles(order.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Files"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => setSelectedOrder(order)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // ✅ Current Month View
+            <div className="divide-y">
+              {filteredOrders.map((order, index) => (
+                <div
+                  key={order.id}
+                  className="p-6 hover:bg-gray-50 relative"
+                  style={{ 
+                    position: 'relative',
+                    zIndex: filteredOrders.length - index
+                  }}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex-1 min-w-[200px]">
+                      <h3 className="font-semibold">{order.orderNumber || `#${order.id}`}</h3>
+                      <p className="text-sm text-gray-600">{order.customerName}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(order.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="font-semibold">₱{order.totalPrice.toFixed(2)}</p>
+                      
+                      {/* Status Dropdown */}
+                      <div className="relative status-dropdown" data-order-id={order.id}>
+                        <button
+                          onClick={() => setOpenDropdownId(openDropdownId === order.id ? null : order.id)}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg ${getStatusColor(order.status)} flex items-center gap-2 hover:opacity-80 transition-opacity`}
+                        >
+                          {getStatusLabel(order.status)} <ChevronDown size={14} />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => downloadDocument(order)}
+                        disabled={!order.fileUrl}
+                        className={`p-2 rounded-lg transition-colors ${
+                          order.fileUrl
+                            ? 'text-green-600 hover:bg-green-50'
+                            : 'text-gray-300 cursor-not-allowed'
+                        }`}
+                        title="Download Document"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedOrder(order)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="View Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Status Dropdown Portal */}
         <AnimatePresence>
           {openDropdownId && (() => {
             const buttonElement = document.querySelector(`[data-order-id="${openDropdownId}"]`);
@@ -577,13 +684,11 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
             
             return (
               <>
-                {/* Backdrop - click to close */}
                 <div 
                   className="fixed inset-0 z-[100]" 
                   onClick={() => setOpenDropdownId(null)}
                 />
                 
-                {/* Dropdown Menu */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95, y: -10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -595,9 +700,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                     left: `${dropdownPosition.left}px`,
                     maxHeight: '300px',
                     overflowY: 'auto',
-                    // ✅ Add smooth scrollbar styling
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: '#cbd5e1 #f1f5f9'
                   }}
                 >
                   {statusOptions
@@ -630,7 +732,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
           })()}
         </AnimatePresence>
 
-        {/* Order Modal */}
+        {/* Order Modal (same as before, keeping all your existing modal code) */}
         {selectedOrder && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
             <motion.div
@@ -663,11 +765,9 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                   </div>
                 </div>
 
-                {/* ✅ PAYMENT VERIFICATION SECTION - PROMINENT */}
+                {/* Payment Verification Section */}
                 {(() => {
                   const paymentInfo = extractPaymentInfo(selectedOrder.adminNotes);
-                  console.log('💳 Payment Info Check:', paymentInfo);
-                  console.log('📝 Admin Notes:', selectedOrder.adminNotes);
                   
                   return paymentInfo && (
                     <div className="border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-yellow-50 p-6 rounded-xl shadow-lg">
@@ -682,7 +782,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-6">
-                        {/* Payment Reference */}
                         <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
                           <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
                             GCash Reference Number
@@ -697,7 +796,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                                 toast({
                                   title: 'Copied!',
                                   description: 'Reference number copied to clipboard',
-                                  variant: 'success',
                                 });
                               }}
                               className="p-1.5 hover:bg-gray-100 rounded transition-colors"
@@ -706,12 +804,8 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                               📋
                             </button>
                           </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            Verify this in your GCash transaction history
-                          </p>
                         </div>
 
-                        {/* Payment Screenshot */}
                         {paymentInfo.screenshotUrl && paymentInfo.screenshotUrl !== 'Not uploaded' && (
                           <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
                             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
@@ -721,22 +815,12 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                               <Image
                                 src={paymentInfo.screenshotUrl}
                                 alt="Payment Proof"
+                                width={200}
+                                height={200}
                                 className="w-full h-48 object-contain rounded-lg border-2 border-gray-200 cursor-pointer hover:border-orange-400 transition-all"
                                 onClick={() => window.open(paymentInfo.screenshotUrl || '', '_blank')}
                                 unoptimized
-                                onError={(e) => {
-                                  console.error('❌ Failed to load payment screenshot:', paymentInfo.screenshotUrl);
-                                  e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%236b7280"%3EImage Error%3C/text%3E%3C/svg%3E';
-                                }}
                               />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg flex items-center justify-center transition-all">
-                                <div className="opacity-0 group-hover:opacity-100 bg-white/90 px-4 py-2 rounded-lg transition-opacity">
-                                  <p className="text-xs font-medium text-gray-900 flex items-center gap-2">
-                                    <Eye className="w-4 h-4" />
-                                    Click to view full size
-                                  </p>
-                                </div>
-                              </div>
                             </div>
                             <button
                               onClick={() => window.open(paymentInfo.screenshotUrl || '', '_blank')}
@@ -749,34 +833,14 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                         )}
                       </div>
 
-                      {/* Payment Amount Verification */}
-                      <div className="mt-4 bg-white p-4 rounded-lg border-2 border-orange-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                              Expected Payment Amount
-                            </p>
-                            <p className="text-2xl font-bold text-orange-600">
-                              ₱{selectedOrder.totalPrice.toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500 mb-1">Verify this matches</p>
-                            <p className="text-xs text-gray-500">the screenshot amount</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Quick Actions */}
                       {selectedOrder.status === 'PENDING' && (
                         <div className="mt-4 flex gap-3">
                           <button
                             onClick={() => {
-                              updateOrderStatus(selectedOrder.id, 'PROCESSING');
+                              updateOrderStatus(selectedOrder.id, 'PAYMENT_RECEIVED');
                               toast({
                                 title: 'Payment Verified',
-                                description: 'Order moved to processing',
-                                variant: 'success',
+                                description: 'Order payment confirmed',
                               });
                             }}
                             className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center justify-center gap-2"
@@ -786,13 +850,8 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm('Are you sure you want to reject this payment? This will cancel the order.')) {
+                              if (confirm('Are you sure you want to reject this payment?')) {
                                 updateOrderStatus(selectedOrder.id, 'CANCELLED');
-                                toast({
-                                  title: 'Payment Rejected',
-                                  description: 'Order has been cancelled',
-                                  variant: 'destructive',
-                                });
                               }
                             }}
                             className="px-4 py-3 border-2 border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-semibold"
@@ -839,9 +898,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                     {selectedOrder.pages && (
                       <p className="text-sm"><strong className="text-gray-600">Pages:</strong> {selectedOrder.pages}</p>
                     )}
-                    {selectedOrder.bindingType && selectedOrder.bindingType !== 'NONE' && (
-                      <p className="text-sm"><strong className="text-gray-600">Binding:</strong> {selectedOrder.bindingType}</p>
-                    )}
                   </div>
                 </div>
 
@@ -860,7 +916,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                           <button
                             onClick={() => {
                               if (selectedOrder.fileUrl) {
-                                // ✅ Use direct URL (matches admin dashboard pattern)
                                 window.open(selectedOrder.fileUrl, '_blank');
                               }
                             }}
