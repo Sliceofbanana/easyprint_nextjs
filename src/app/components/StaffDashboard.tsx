@@ -243,6 +243,25 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
     }
   };
 
+    const extractDeliveryInfo = (adminNotes?: string) => {
+    if (!adminNotes) return null;
+    
+    const deliveryMatch = adminNotes.match(/Delivery:\s*(.+?)(?:\n|$)/i);
+    const addressMatch = adminNotes.match(/Delivery Address:\s*(.+?)(?:\n|$)/i);
+    const campusMatch = adminNotes.match(/Campus Location:\s*(.+?)(?:\n|$)/i);
+    
+    if (deliveryMatch) {
+      const deliveryType = deliveryMatch[1]?.trim().toLowerCase() || '';
+      
+      return {
+        type: deliveryType,
+        address: addressMatch?.[1]?.trim() || null,
+        location: campusMatch?.[1]?.trim() || null,
+      };
+    }
+    return null;
+  };
+
   const downloadDocument = async (order: Order) => {
     if (!order.fileUrl) {
       toast({
@@ -498,7 +517,7 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white p-6 rounded-xl shadow-lg border mb-8">
+        <div className="bg-white p-6 rounded-xl sharder mb-8">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -874,28 +893,52 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                     {selectedOrder.customerPhone && (
                       <p className="text-sm"><strong className="text-gray-600">Phone:</strong> {selectedOrder.customerPhone}</p>
                     )}
-                  </div>
-                </div>
-
-                {/* Order Details */}
-                <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-3 flex items-center gap-2">
-                    <Package className="w-5 h-5 text-blue-900" />
-                    Order Specifications
-                  </h3>
-                  <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-3">
-                    {selectedOrder.paperSize && (
-                      <p className="text-sm"><strong className="text-gray-600">Paper:</strong> {selectedOrder.paperSize}</p>
-                    )}
-                    {selectedOrder.colorType && (
-                      <p className="text-sm"><strong className="text-gray-600">Type:</strong> {selectedOrder.colorType}</p>
-                    )}
-                    {selectedOrder.copies && (
-                      <p className="text-sm"><strong className="text-gray-600">Copies:</strong> {selectedOrder.copies}</p>
-                    )}
-                    {selectedOrder.pages && (
-                      <p className="text-sm"><strong className="text-gray-600">Pages:</strong> {selectedOrder.pages}</p>
-                    )}
+                    
+                    {/* ✅ ADD: Display Delivery Information */}
+                    {(() => {
+                      const deliveryInfo = extractDeliveryInfo(selectedOrder.adminNotes);
+                      
+                      if (deliveryInfo) {
+                        return (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                              <Package className="w-4 h-4" />
+                              Delivery Details
+                            </p>
+                            <p className="text-sm">
+                              <strong className="text-gray-600">Type:</strong>{' '}
+                              <span className="capitalize">{deliveryInfo.type}</span>
+                            </p>
+                            
+                            {deliveryInfo.type === 'maxim' && deliveryInfo.address && (
+                              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <p className="text-xs font-semibold text-amber-900 mb-1">
+                                  Delivery Address:
+                                </p>
+                                <p className="text-sm text-gray-800">{deliveryInfo.address}</p>
+                                <p className="text-xs text-amber-700 mt-2 italic">
+                                  Note: Delivery fee to be computed based on distance
+                                </p>
+                              </div>
+                            )}
+                            
+                            {deliveryInfo.type === 'campus' && deliveryInfo.location && (
+                              <p className="text-sm mt-1">
+                                <strong className="text-gray-600">Campus Location:</strong>{' '}
+                                {deliveryInfo.location}
+                              </p>
+                            )}
+                            
+                            {deliveryInfo.type === 'pickup' && (
+                              <p className="text-sm text-green-700 mt-1">
+                                ✓ Customer will pick up at your location
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
 
