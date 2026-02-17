@@ -73,7 +73,6 @@ export default function UserDashboard({ user: initialUser }: UserDashboardProps)
 
   useEffect(() => {
     const handleProfileUpdate = async () => {
-      console.log('🔄 Profile updated event received');
       const updated = await update();
       
       if (updated?.user) {
@@ -81,7 +80,6 @@ export default function UserDashboard({ user: initialUser }: UserDashboardProps)
           name: updated.user.name || undefined,
           email: updated.user.email || '',
         });
-        console.log('✅ Session refreshed:', updated.user.name);
       }
     };
     
@@ -97,7 +95,6 @@ export default function UserDashboard({ user: initialUser }: UserDashboardProps)
         if (!response.ok) throw new Error('Failed to fetch orders');
         
         const data = await response.json();
-        console.log('📦 User fetched orders:', data);
         
         setOrders(data);
         
@@ -113,13 +110,9 @@ export default function UserDashboard({ user: initialUser }: UserDashboardProps)
           !isCurrentMonth(new Date(o.createdAt))
         );
         
-        console.log('✅ Active orders:', active);
-        console.log('📦 Archived orders:', archived);
-        
         setActiveOrders(active);
         setArchivedOrders(archived);
       } catch (error) {
-        console.error('Error fetching orders:', error);
         toast({
           title: 'Error',
           description: 'Failed to load orders',

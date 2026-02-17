@@ -18,7 +18,6 @@ export default function OrderPage() {
         callbackUrl: '/login' 
       });
     } catch (error) {
-      console.error('Logout error:', error);
       router.push('/login');
     }
   };

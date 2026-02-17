@@ -263,7 +263,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         setUnreadCount(unread);
         setLastNotificationCount(unread);
       } else if (notifRes.status === 403) {
-        console.log('User does not have permission to view notifications');
         setNotifications([]);
         setUnreadCount(0);
       }
@@ -298,7 +297,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         await fetchNotifications(false);
 
       } catch (error) {
-        console.error('Error fetching admin data:', error);
         toast({
           title: 'Error',
           description: 'Failed to load dashboard data',
@@ -331,7 +329,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           setOrders(ordersData);
         }
       } catch (error) {
-        console.error('Error polling orders:', error);
       }
     }, 10000);
 
@@ -477,7 +474,6 @@ const exportSalesReport = useCallback((includeArchive = false) => {
         variant: 'success',
       });
     } catch (error) {
-      console.error('Export error:', error);
       toast({
         title: 'Export Failed',
         description: 'Failed to export sales report',
@@ -524,7 +520,6 @@ const exportSalesReport = useCallback((includeArchive = false) => {
         await fetchNotifications(false);
 
       } catch (error) {
-        console.error('Error fetching admin data:', error);
         toast({
           title: 'Error',
           description: 'Failed to load dashboard data',
@@ -709,7 +704,6 @@ const exportSalesReport = useCallback((includeArchive = false) => {
         description: `${link.download} downloaded successfully`,
       });
     } catch (error) {
-      console.error('Download error:', error);
       toast({
         title: 'Download Failed',
         description: error instanceof Error ? error.message : 'Failed to download document',

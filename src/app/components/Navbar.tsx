@@ -25,8 +25,9 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
                 src="/images/logo.webp"
                 alt="MQ Printing Logo"
                 width={120}
-                height={38}
-                className="object-contain h-full w-auto"
+                height={48}
+                style={{ width: 'auto', height: '100%' }}
+                className="object-contain"
                 priority
               />
             </div>
@@ -62,22 +63,20 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
                 </div>
               </div>
 
-              {/* Dropdown Menu */}
               <AnimatePresence>
                 {isUserDropdownOpen && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
+                    className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50"
                   >
                     <Link
                       href="/dashboard"
-                      className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-900 transition-colors"
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
                     >
-                      <LayoutDashboard className="w-4 h-4" />
-                      <span className="font-medium">Dashboard</span>
+                      <LayoutDashboard className="w-4 h-4 text-gray-600" />
+                      <span className="text-gray-700 font-medium">Dashboard</span>
                     </Link>
                     
                     <div className="border-t border-gray-100"></div>
@@ -116,13 +115,7 @@ export default function Navbar({ user, onLogout }: NavbarProps) {
               <div className="space-y-3">
                 <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
                   <div className="w-10 h-10 bg-blue-900 rounded-full flex items-center justify-center">
-                    <Image
-                      src="/images/logo.webp"
-                      alt="MQ Printing"
-                      width={40}
-                      height={40}
-                      className="object-contain rounded-full"
-                    />
+                    <User className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <p className="font-medium text-gray-700">

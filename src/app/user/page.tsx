@@ -18,7 +18,6 @@ export default function UserPage() {
         callbackUrl: '/login' 
       });
     } catch (error) {
-      console.error('Logout error:', error);
       router.push('/login');
     }
   };

@@ -41,7 +41,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Download error:', error);
       setError('Failed to download file');
     }
   };

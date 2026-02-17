@@ -80,7 +80,6 @@ export default function ProfilePage() {
       window.dispatchEvent(new Event('profileUpdated'));
 
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to update profile',

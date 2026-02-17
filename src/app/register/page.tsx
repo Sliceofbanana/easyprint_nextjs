@@ -137,7 +137,6 @@ export default function RegisterPage() {
         router.push('/dashboard');
       }, 1000);
     } catch (error) {
-      console.error('Registration error:', error);
       toast({
         title: 'Registration Failed',
         description: error instanceof Error ? error.message : 'Something went wrong',

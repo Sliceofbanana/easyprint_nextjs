@@ -109,7 +109,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
       setActiveOrders(current);
       setArchivedOrders(archived);
     } catch (error) {
-      console.error('Error fetching orders:', error);
       toast({
         title: 'Error',
         description: 'Failed to load orders',
@@ -135,7 +134,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
             setArchivedOrders(archived);
           }
         })
-        .catch(console.error);
     }, 30000);
 
     return () => clearInterval(interval);
@@ -237,7 +235,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
 
       fetchOrders();
     } catch (error) {
-      console.error('Error deleting files:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete order files',
@@ -285,7 +282,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
         description: `${link.download} downloaded successfully`,
       });
     } catch (error) {
-      console.error('Download error:', error);
       toast({
         title: 'Download Failed',
         description: error instanceof Error ? error.message : 'Failed to download document',
@@ -358,7 +354,6 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
         printWindow.print();
       }, 250);
     } catch (error) {  
-      console.error('Print error:', error);
       toast({
         title: 'Print Failed',
         description: error instanceof Error ? error.message : 'Failed to generate print preview',
@@ -703,7 +698,10 @@ const StaffDashboard: React.FC<StaffDashboardProps> = ({ user }) => {
                   }}
                 >
                   {statusOptions
-                    .filter((s) => s.value !== 'all' && s.value !== orders.find(o => o.id === openDropdownId)?.status)
+                    .filter((s) => {
+                      const currentOrder = filteredOrders.find(o => o.id === openDropdownId);
+                      return s.value !== 'all' && s.value !== currentOrder?.status;
+                    })
                     .map((s) => (
                       <button
                         key={s.value}

@@ -33,7 +33,6 @@ export default function DashboardPage() {
         callbackUrl: '/login' 
       });
     } catch (error) {
-      console.error('Logout error:', error);
       // Fallback: force redirect even if signOut fails
       router.push('/login');
     }

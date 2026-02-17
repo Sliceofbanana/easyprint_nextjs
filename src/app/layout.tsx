@@ -2,11 +2,11 @@ import './globals.css';
 import { Toaster } from './components/ui/Toaster';
 import { Inter } from 'next/font/google';
 import { Providers } from './providers';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 
 const inter = Inter({ subsets: ['latin'] });
 
-// ✅ Add metadata for favicon and SEO
+// ✅ Metadata configuration
 export const metadata: Metadata = {
   title: 'MQ Printing - EasyPrint',
   description: 'Professional printing services for documents, IDs, and more. Fast, reliable, and affordable printing solutions.',
@@ -18,16 +18,10 @@ export const metadata: Metadata = {
     ],
   },
   manifest: '/site.webmanifest',
-  themeColor: '#1e3a8a',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://mqprinting.com',
+    url: 'https://mqprintsph.com/',
     title: 'MQ Printing - EasyPrint',
     description: 'Professional printing services for documents, IDs, and more',
     siteName: 'MQ Printing',
@@ -40,19 +34,20 @@ export const metadata: Metadata = {
       },
     ],
   },
-  twitter: {
-    card: 'summary',
-    title: 'MQ Printing - EasyPrint',
-    description: 'Professional printing services',
-    images: ['/images/logo.webp'],
-  },
+};
+
+// ✅ Viewport configuration (moved themeColor here)
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#1e3a8a',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <meta name="theme-color" content="#1e3a8a" />
         <link rel="manifest" href="/site.webmanifest" />
       </head>
       <body className={`${inter.className} min-h-screen bg-background flex flex-col`}>

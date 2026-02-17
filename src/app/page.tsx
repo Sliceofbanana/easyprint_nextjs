@@ -25,7 +25,6 @@ export default function HomePage() {
         router.push('/login');
       }
     } catch (error) {
-      console.error('Redirect error:', error);
       router.push('/login');
     }
   }, [mounted, status, session, router]);

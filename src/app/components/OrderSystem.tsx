@@ -16,6 +16,7 @@ import {
   QrCode,
   Image as ImageIcon,
   AlertCircle,
+  X,
 } from 'lucide-react';
 import { useToast } from './ui/Use-Toast';
 import { useFileUpload } from '../../hooks/useFileUpload';
@@ -63,6 +64,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
   const [paymentProgress, setPaymentProgress] = useState(0);
   const [serviceType, setServiceType] = useState<'DOCUMENT_PRINTING' | 'RUSH_ID' | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
+  const [showPrintModeImage, setShowPrintModeImage] = useState(false);
   
   const [orderDetails, setOrderDetails] = useState({
     paperSize: "a4",
@@ -192,18 +194,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     
     // ✅ STEP 7: Calculate grand total
     const total = Number((printingCost + bindingCost + deliveryCost).toFixed(2));
-    
-    console.log('📊 Price Breakdown:', {
-      totalPages,
-      copies,
-      paperSize,
-      printMode,
-      pricePerPage,
-      printingCost,
-      bindingCost,
-      deliveryCost,
-      total
-    });
     
     setOrderTotal(total);
     return total;
@@ -412,8 +402,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       }
 
       const adminNotes = adminNotesLines.join('\n');
-      console.log('📝 Admin Notes being saved:', adminNotes);
-      console.log('💳 Payment Proof:', paymentProof);
 
       // ✅ FIXED: Map internal paper size names to Prisma enum values
       const PAPER_SIZE_MAP: Record<string, string> = {
@@ -488,8 +476,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         };
       }
 
-      console.log('📤 Submitting order payload:', orderPayload);
-
       // ✅ Submit order
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -499,8 +485,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
       // ✅ Get response text first
       const responseText = await response.text();
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response body:', responseText);
 
       if (!response.ok) {
         let errorData;
@@ -509,8 +493,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         } catch {
           errorData = { error: responseText || 'Unknown error' };
         }
-        
-        console.error('❌ Order creation failed:', errorData);
         
         toast({
           title: 'Order Failed',
@@ -523,7 +505,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
       // ✅ Parse success response
       const data = JSON.parse(responseText);
-      console.log('✅ Order created:', data);
       
       setOrderId(data.orderNumber || data.order?.orderNumber || '1001');
 
@@ -535,8 +516,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
       setCurrentStep(7);
     } catch (error) {
-      console.error('❌ Order submission error:', error);
-      
       // ✅ Only show toast if not already shown
       if (!(error instanceof Error && error.message.includes('Failed to create order'))) {
         toast({
@@ -631,7 +610,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       xhr.send(formData);
 
     } catch (error) {
-      console.error('Payment proof upload error:', error);
       toast({
         title: 'Upload Failed',
         description: error instanceof Error ? error.message : 'Failed to upload payment screenshot',
@@ -659,9 +637,9 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
   const renderFileUploadStep = () => (
     <div>
-      <h2 className="text-xl font-bold mb-4">Upload Your Files</h2>
+      <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Upload Your Files</h2>
       <div
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+        className={`border-2 border-dashed rounded-lg p-4 sm:p-6 md:p-8 text-center transition-colors ${
           isDragOver ? 'border-blue-900 bg-blue-50' : 'border-gray-300'
         }`}
         onDragOver={(e) => {
@@ -675,8 +653,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
           handleFileUpload(e.dataTransfer.files);
         }}
       >
-        <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-        <p className="text-gray-600 mb-4">Drag and drop files here, or click to browse</p>
+        <Upload className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 mx-auto mb-3 sm:mb-4 text-gray-400" />
+        <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 px-2">
+          Drag and drop files here, or click to browse
+        </p>
         <input
           ref={fileInputRef}
           type="file"
@@ -688,7 +668,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="px-6 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50"
+          className="px-4 sm:px-6 py-2 sm:py-2.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50 text-sm sm:text-base"
         >
           {isUploading ? (
             <span className="flex items-center gap-2">
@@ -699,15 +679,15 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
             'Browse Files'
           )}
         </button>
-        <p className="text-xs text-gray-500 mt-3">
+        <p className="text-[10px] sm:text-xs text-gray-500 mt-2 sm:mt-3 px-2">
           Supported: PDF, DOC, DOCX, JPG, PNG (Max 10MB each)
         </p>
       </div>
 
-      {/* ✅ UPDATED: Document Upload Progress - Matches Payment Screenshot Style */}
+      {/* Document Upload Progress - Mobile Optimized */}
       {uploadingFiles.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <h3 className="font-semibold text-sm text-gray-700">
+        <div className="mt-4 sm:mt-6 space-y-2 sm:space-y-3">
+          <h3 className="font-semibold text-xs sm:text-sm text-gray-700">
             Uploading Documents ({uploadingFiles.length})
           </h3>
           {uploadingFiles.map((file) => (
@@ -715,23 +695,23 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               key={file.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-6 border-2 border-blue-200 bg-blue-50 rounded-lg"
+              className="p-3 sm:p-4 md:p-6 border-2 border-blue-200 bg-blue-50 rounded-lg"
             >
               {/* File Info Header */}
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                 <div className="flex-shrink-0">
                   {file.status === 'uploading' && (
-                    <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                    <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 animate-spin" />
                   )}
                   {file.status === 'success' && (
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">
                     {file.name}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-[10px] sm:text-xs text-gray-600">
                     {(file.size / 1024).toFixed(2)} KB • {file.type.split('/')[1]?.toUpperCase()}
                   </p>
                 </div>
@@ -740,11 +720,11 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               {/* Progress Bar */}
               {file.status === 'uploading' && (
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs text-gray-600">
+                  <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-600">
                     <span>Uploading document...</span>
                     <span className="font-bold text-blue-900">{file.progress}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2 overflow-hidden">
                     <motion.div
                       className="bg-blue-600 h-full rounded-full"
                       initial={{ width: 0 }}
@@ -758,8 +738,8 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               {/* Success Message */}
               {file.status === 'success' && (
                 <div className="p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-700" />
-                  <span className="text-xs text-green-800 font-medium">
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-700 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs text-green-800 font-medium">
                     Upload complete • {file.pages} page(s) detected
                   </span>
                 </div>
@@ -768,8 +748,8 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               {/* Error Message */}
               {file.status === 'error' && (
                 <div className="p-2 bg-red-100 border border-red-300 rounded flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-700" />
-                  <span className="text-xs text-red-800 font-medium">
+                  <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-red-700 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs text-red-800 font-medium">
                     Upload failed
                   </span>
                 </div>
@@ -779,10 +759,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         </div>
       )}
 
-      {/* Uploaded Files List */}
+      {/* Uploaded Files List - Mobile Optimized */}
       {files.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <h3 className="font-semibold text-sm text-gray-700">
+        <div className="mt-4 sm:mt-6 space-y-2 sm:space-y-3">
+          <h3 className="font-semibold text-xs sm:text-sm text-gray-700">
             Uploaded Files ({files.length})
           </h3>
           {files.map((file) => (
@@ -790,54 +770,36 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               key={file.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="border-2 border-green-200 bg-green-50 rounded-lg p-4"
+              className="border-2 border-green-200 bg-green-50 rounded-lg p-3 sm:p-4"
             >
-              <div className="flex items-start gap-3">
-                {/* File Preview/Icon */}
-                <div className="flex-shrink-0">
-                  <div className="relative w-64 h-64 mx-auto">
-                    {file.type.startsWith('image/') ? (
-                      <Image
-                        src="/images/Gcash QR.webp"
-                        alt="GCash QR Code"
-                        fill
-                        className="object-contain"
-                        priority
-                      />
-                    ) : (
-                    <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center border-2 border-blue-300">
-                      <FileText className="w-10 h-10 text-blue-900" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-                {/* File Info */}
+              <div className="flex items-start gap-2 sm:gap-3">
+                <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 flex-shrink-0 mt-0.5" />
+                
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2 mb-1 sm:mb-2">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-gray-900 truncate">
+                      <p className="font-medium text-xs sm:text-sm text-gray-900 truncate">
                         {file.name}
                       </p>
-                      <p className="text-xs text-gray-600">
+                      <p className="text-[10px] sm:text-xs text-gray-600">
                         {(file.size / 1024).toFixed(2)} KB • {file.pages} page(s)
                       </p>
                     </div>
-                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       onClick={() => handlePreviewFile(file)}
-                      className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                      className="text-[10px] sm:text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
                     >
                       <Eye className="w-3 h-3" />
                       Preview
                     </button>
                     <button
                       onClick={() => removeFile(file.id)}
-                      className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
+                      className="text-[10px] sm:text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
                     >
                       <Trash2 className="w-3 h-3" />
                       Remove
@@ -847,9 +809,9 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               </div>
 
               {/* Success Badge */}
-              <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-700" />
-                <span className="text-xs text-green-800 font-medium">
+              <div className="mt-2 sm:mt-3 p-1.5 sm:p-2 bg-green-100 border border-green-300 rounded flex items-center gap-1.5 sm:gap-2">
+                <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-700 flex-shrink-0" />
+                <span className="text-[10px] sm:text-xs text-green-800 font-medium">
                   Document uploaded successfully
                 </span>
               </div>
@@ -858,53 +820,53 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         </div>
       )}
 
-      {/* Service Type Selection */}
+      {/* Service Type Selection - Mobile Optimized */}
       {files.length > 0 && (
-        <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle className="w-5 h-5 text-blue-900" />
-            <h3 className="font-bold text-blue-900">What service do you need?</h3>
+        <div className="mt-4 sm:mt-6 p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-3 sm:mb-4">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-900 flex-shrink-0" />
+            <h3 className="font-bold text-sm sm:text-base text-blue-900">What service do you need?</h3>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <button
               onClick={() => setServiceType('DOCUMENT_PRINTING')}
-              className={`p-6 border-2 rounded-xl transition-all ${
+              className={`p-4 sm:p-6 border-2 rounded-xl transition-all ${
                 serviceType === 'DOCUMENT_PRINTING'
                   ? 'border-blue-900 bg-blue-100 shadow-lg'
                   : 'border-gray-300 hover:border-blue-400'
               }`}
             >
-              <FileText className={`w-10 h-10 mx-auto mb-3 ${
+              <FileText className={`w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 sm:mb-3 ${
                 serviceType === 'DOCUMENT_PRINTING' ? 'text-blue-900' : 'text-gray-400'
               }`} />
-              <p className="font-bold text-center">Document Printing</p>
-              <p className="text-xs text-gray-600 text-center mt-1">
+              <p className="font-bold text-center text-xs sm:text-sm md:text-base">Document Printing</p>
+              <p className="text-[10px] sm:text-xs text-gray-600 text-center mt-1">
                 Print documents, reports, assignments
               </p>
             </button>
 
             <button
               onClick={() => setServiceType('RUSH_ID')}
-              className={`p-6 border-2 rounded-xl transition-all ${
+              className={`p-4 sm:p-6 border-2 rounded-xl transition-all ${
                 serviceType === 'RUSH_ID'
                   ? 'border-blue-900 bg-blue-100 shadow-lg'
                   : 'border-gray-300 hover:border-blue-400'
               }`}
             >
-              <ImageIcon className={`w-10 h-10 mx-auto mb-3 ${
+              <ImageIcon className={`w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 sm:mb-3 ${
                 serviceType === 'RUSH_ID' ? 'text-blue-900' : 'text-gray-400'
               }`} />
-              <p className="font-bold text-center">Rush ID Photos</p>
-              <p className="text-xs text-gray-600 text-center mt-1">
+              <p className="font-bold text-center text-xs sm:text-sm md:text-base">Rush ID Photos</p>
+              <p className="text-[10px] sm:text-xs text-gray-600 text-center mt-1">
                 1x1, 2x2, Passport size photos
               </p>
             </button>
           </div>
 
           {serviceType && (
-            <p className="mt-4 text-sm text-green-700 font-medium flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" />
+            <p className="mt-3 sm:mt-4 text-xs sm:text-sm text-green-700 font-medium flex items-center justify-center gap-2">
+              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
               Selected: {serviceType === 'DOCUMENT_PRINTING' ? 'Document Printing' : 'Rush ID Photos'}
             </p>
           )}
@@ -925,30 +887,30 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
         return (
           <div>
-            <h2 className="text-xl font-bold mb-6">
+            <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">
               {serviceType === 'RUSH_ID' ? 'Select Rush ID Package' : 'Configure Your Print Job'}
             </h2>
 
             {serviceType === 'RUSH_ID' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   {RUSH_ID_PACKAGES.map((pkg) => (
                     <button
                       key={pkg.id}
                       onClick={() => setOrderDetails({ ...orderDetails, rushPackage: pkg.id })}
-                      className={`p-6 border-2 rounded-xl transition-all text-left ${
+                      className={`p-4 sm:p-6 border-2 rounded-xl transition-all text-left ${
                         orderDetails.rushPackage === pkg.id
                           ? 'border-blue-900 bg-blue-50 shadow-lg'
                           : 'border-gray-300 hover:border-gray-400'
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-bold text-lg">{pkg.name}</h3>
-                        <span className="px-3 py-1 bg-blue-100 text-blue-900 rounded-full text-sm font-bold">
+                      <div className="flex justify-between items-start mb-2 sm:mb-3">
+                        <h3 className="font-bold text-base sm:text-lg">{pkg.name}</h3>
+                        <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-900 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap ml-2">
                           ₱{pkg.price}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">
+                      <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">
                         <strong>{pkg.copies} copies</strong>
                       </p>
                       <p className="text-xs text-gray-500">
@@ -959,12 +921,12 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                 </div>
 
                 {orderDetails.rushPackage && (
-                  <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+                  <div className="p-4 sm:p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-5 h-5 text-green-700" />
-                      <h3 className="font-semibold text-green-900">Package Selected</h3>
+                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-700" />
+                      <h3 className="font-semibold text-sm sm:text-base text-green-900">Package Selected</h3>
                     </div>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-xs sm:text-sm text-gray-700">
                       {RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.name} - 
                       ₱{RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage)?.price}
                     </p>
@@ -974,13 +936,13 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
             )}
 
             {serviceType === 'DOCUMENT_PRINTING' && (
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
                   <label className="block text-sm font-medium mb-2">Paper Size</label>
                   <select
                     value={orderDetails.paperSize}
                     onChange={(e) => setOrderDetails({ ...orderDetails, paperSize: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
+                    className="w-full p-2.5 sm:p-3 border rounded-lg text-sm sm:text-base"
                   >
                     <option value="short">Letter (8.5&quot; × 11&quot;)</option>
                     <option value="a4">A4</option>
@@ -994,18 +956,70 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   <select
                     value={orderDetails.printMode}
                     onChange={(e) => setOrderDetails({ ...orderDetails, printMode: e.target.value})}
-                    className="w-full p-3 border rounded-lg"
+                    className="w-full p-2.5 sm:p-3 border rounded-lg text-sm sm:text-base"
                   >
                     <option value="black">Black & White - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].black}/page</option>
                     <option value="partial">Partial Color - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].partial}/page</option>
                     <option value="full">Full Color - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].full}/page</option>
                     <option value="borderless">Borderless - ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES].borderless}/page</option>
                   </select>
+
+                  {/* Print Mode Example - Text Above Image with Popup */}
+                  <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+                    {/* Text Content First */}
+                    <div className="mb-3 sm:mb-4 text-center">
+                      <h4 className="font-semibold text-sm sm:text-base text-blue-900 mb-1 sm:mb-2 flex items-center justify-center gap-2">
+                        <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                        {orderDetails.printMode === 'black' && 'Black & White'}
+                        {orderDetails.printMode === 'partial' && 'Partial Color'}
+                        {orderDetails.printMode === 'full' && 'Full Color'}
+                        {orderDetails.printMode === 'borderless' && 'Borderless'}
+                      </h4>
+                      <p className="text-[10px] sm:text-xs text-gray-700 leading-relaxed">
+                        {orderDetails.printMode === 'black' && 'Perfect for text documents, assignments, and reports. Economical and professional.'}
+                        {orderDetails.printMode === 'partial' && 'Text in black with colored elements like charts, graphs, and highlights.'}
+                        {orderDetails.printMode === 'full' && 'Vibrant full-color printing for presentations, brochures, and marketing materials.'}
+                        {orderDetails.printMode === 'borderless' && 'Edge-to-edge printing with no white margins. Ideal for photos and posters.'}
+                      </p>
+                      <div className="mt-1 sm:mt-2 flex items-center justify-center gap-1">
+                        <span className="text-[10px] sm:text-xs font-semibold text-blue-900">
+                          ₱{PRINT_PRICES[orderDetails.paperSize as keyof typeof PRINT_PRICES][orderDetails.printMode as keyof typeof PRINT_PRICES['a4']]} per page
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Image Below - Clickable for Popup */}
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowPrintModeImage(true)}
+                        className="relative w-48 h-32 sm:w-64 sm:h-48 md:w-80 md:h-60 lg:w-full lg:max-w-3xl lg:h-96 xl:max-w-4xl xl:h-[500px] rounded-lg overflow-hidden border-2 border-blue-300 shadow-md hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer group"
+                        title="Click to view Image"
+                      >
+                        <Image
+                          src="/images/example/print-modes.webp"
+                          alt="Print Mode Examples"
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          unoptimized
+                          sizes="(max-width: 640px) 160px, (max-width: 768px) 224px, (max-width: 1024px) 256px, 288px"
+                        />
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                          <Eye className="w-6 h-6 sm:w-8 sm:h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        </div>
+                      </button>
+                    </div>
+                    
+                    <p className="text-[10px] sm:text-xs text-center text-gray-500 mt-2">
+                      Click image to view full size
+                    </p>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Number of Copies</label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 justify-center sm:justify-start">
                     <button
                       onClick={() => setOrderDetails({ ...orderDetails, copies: Math.max(1, orderDetails.copies - 1) })}
                       className="p-2 border rounded-lg hover:bg-gray-100"
@@ -1017,7 +1031,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                       min="1"
                       value={orderDetails.copies}
                       onChange={(e) => setOrderDetails({ ...orderDetails, copies: parseInt(e.target.value) || 1 })}
-                      className="w-20 p-2 border rounded-lg text-center"
+                      className="w-16 sm:w-20 p-2 border rounded-lg text-center text-sm sm:text-base"
                     />
                     <button
                       onClick={() => setOrderDetails({ ...orderDetails, copies: orderDetails.copies + 1 })}
@@ -1033,22 +1047,23 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   <select
                     value={orderDetails.binding}
                     onChange={(e) => setOrderDetails({ ...orderDetails, binding: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
+                    className="w-full p-2.5 sm:p-3 border rounded-lg text-xs sm:text-sm"
                   >
                     <option value="none">No Binding - Free</option>
-                    <option value="book-soft">Book Binding (Soft Cover) - ₱300-400</option>
-                    <option value="book-hard">Book Binding (Hard Cover) - ₱400-500</option>
-                    <option value="wire-soft">Wire Binding (Soft Cover) - ₱60-80</option>
-                    <option value="wire-hard">Wire Binding (Hard Cover) - ₱110-130</option>
+                    <option value="book-soft">Book Binding (Soft) - ₱300-400</option>
+                    <option value="book-hard">Book Binding (Hard) - ₱400-500</option>
+                    <option value="wire-soft">Wire Binding (Soft) - ₱60-80</option>
+                    <option value="wire-hard">Wire Binding (Hard) - ₱110-130</option>
                   </select>
                 </div>
 
-                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
-                  <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5" />
+                {/* Price Calculation - Mobile Optimized */}
+                <div className="p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
+                  <h3 className="font-semibold text-sm sm:text-base text-blue-900 mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                     Price Calculation
                   </h3>
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-2 text-xs sm:text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Total Pages:</span>
                       <span className="font-semibold">{totalPages} page(s)</span>
@@ -1063,12 +1078,11 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                     </div>
                     <div className="border-t-2 border-blue-300 pt-3 mt-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-lg font-bold text-gray-900">Subtotal:</span>
-                        <span className="text-2xl font-bold text-blue-900">
+                        <span className="text-sm sm:text-lg font-bold text-gray-900">Subtotal:</span>
+                        <span className="text-lg sm:text-2xl font-bold text-blue-900">
                           ₱{(() => {
                             let subtotal = printingSubtotal;
                             
-                            // Add binding cost if selected
                             if (orderDetails.binding !== 'none') {
                               const bindingType = orderDetails.binding as keyof typeof BINDING_PRICES;
                               const priceFn = BINDING_PRICES[bindingType];
@@ -1082,9 +1096,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                           })()}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1 text-center">
-                        Delivery fee will be added at checkout
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -1096,45 +1107,67 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       case 3:
         return (
           <div>
-            <h2 className="text-xl font-bold mb-6">Delivery Options</h2>
-            <div className="space-y-6">
+            <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Delivery Options</h2>
+            <div className="space-y-4 sm:space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2">Delivery Type</label>
-                <select
-                  value={orderDetails.deliveryType}
-                  onChange={(e) => setOrderDetails({ ...orderDetails, deliveryType: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
-                >
-                  <option value="pickup">Pickup (In person or via lalamove/maxim)</option>
-                  <option value="campus">Campus Delivery (+₱10)</option>
-                </select>
-              </div>
-
-              {orderDetails.deliveryType === "campus" && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Select Campus Location</label>
-                  <select
-                    value={orderDetails.deliveryLocation}
-                    onChange={(e) => setOrderDetails({ ...orderDetails, deliveryLocation: e.target.value })}
-                    className="w-full p-3 border rounded-lg"
-                    required
+                <div className="space-y-3">
+                  {/* Pickup Option */}
+                  <button
+                    type="button"
+                    onClick={() => setOrderDetails({ ...orderDetails, deliveryType: 'pickup', deliveryLocation: '' })}
+                    className={`w-full p-3 sm:p-4 border-2 rounded-lg text-left transition-all ${
+                      orderDetails.deliveryType === 'pickup'
+                        ? 'border-blue-900 bg-blue-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
                   >
-                    <option value="">-- Select Location --</option>
-                    {cebuLocations.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
-                  </select>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm sm:text-base">Pickup</p>
+                        <p className="text-xs sm:text-sm text-gray-600">In person or via Lalamove/Maxim</p>
+                        <p className="text-[10px] sm:text-xs text-amber-600 mt-1">Customer arranges & pays for delivery</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Campus Delivery Option - Disabled */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full p-3 sm:p-4 border-2 border-gray-200 rounded-lg text-left bg-gray-100 cursor-not-allowed opacity-60"
+                    >
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-1">
+                          <div>
+                            <p className="font-semibold text-sm sm:text-base text-gray-500">Campus Delivery</p>
+                            <p className="text-xs sm:text-sm text-gray-400">Delivery to campus locations</p>
+                          </div>
+                          <div className="group relative">
+                            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                              Coming Soon!
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="font-bold text-xs sm:text-sm text-gray-400">+₱10.00</span>
+                      </div>
+                    </button>
+                    <div className="absolute top-2 right-2 px-2 py-1 bg-orange-100 text-orange-700 text-[10px] sm:text-xs font-bold rounded-full">
+                      Coming Soon
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">Special Instructions (Optional)</label>
                 <textarea
                   value={orderDetails.specialInstructions}
                   onChange={(e) => setOrderDetails({ ...orderDetails, specialInstructions: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-3 border rounded-lg text-xs sm:text-sm"
                   rows={4}
                   placeholder="Any special requests or instructions..."
                 />
@@ -1146,7 +1179,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       case 4:
         return (
           <div>
-            <h2 className="text-xl font-bold mb-6">Contact Information</h2>
+            <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Contact Information</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Full Name</label>
@@ -1154,7 +1187,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   type="text"
                   value={orderDetails.contactName}
                   onChange={(e) => setOrderDetails({ ...orderDetails, contactName: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-2.5 sm:p-3 border rounded-lg text-sm sm:text-base"
                   placeholder="Enter your name"
                   required
                 />
@@ -1166,7 +1199,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   type="tel"
                   value={orderDetails.contactPhone}
                   onChange={(e) => setOrderDetails({ ...orderDetails, contactPhone: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-2.5 sm:p-3 border rounded-lg text-sm sm:text-base"
                   placeholder="09XX XXX XXXX"
                   required
                 />
@@ -1178,7 +1211,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                   type="email"
                   value={orderDetails.contactEmail}
                   onChange={(e) => setOrderDetails({ ...orderDetails, contactEmail: e.target.value })}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-2.5 sm:p-3 border rounded-lg text-sm sm:text-base"
                   placeholder="your.email@example.com"
                   required
                 />
@@ -1187,7 +1220,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
           </div>
         );
 
-      case 5:
+        case 5:
         return (
           <div>
             <h2 className="text-xl font-bold mb-6">Review Order Summary</h2>
@@ -1249,12 +1282,6 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                       <span className="font-medium text-sm">{orderDetails.deliveryLocation}</span>
                     </div>
                   )}
-                  <div className="flex justify-between mt-2">
-                    <span className="text-gray-600">Delivery Fee:</span>
-                    <span className="font-medium">
-                      {orderDetails.deliveryType === 'campus' ? '₱10.00' : 'FREE'}
-                    </span>
-                  </div>
                 </div>
 
                 <div className="border-t-2 border-blue-900 pt-3 mt-3">
@@ -1274,139 +1301,138 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
       case 6:
           return (
             <div>
-              <h2 className="text-xl font-bold mb-6">Payment</h2>
+              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Payment</h2>
               
-              <div className="space-y-6">
-                {/* Payment Method Selector */}
-                <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+              <div className="space-y-4 sm:space-y-6">
+                {/* Payment Method Selector - Mobile Optimized */}
+                <div className="bg-white p-3 sm:p-4 rounded-lg border-2 border-gray-200">
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     Select Payment Method
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentMethod('gcash')}
-                      className={`p-4 rounded-lg border-2 transition-all ${
+                      className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                         selectedPaymentMethod === 'gcash'
                           ? 'border-blue-500 bg-blue-50 text-blue-900'
                           : 'border-gray-300 hover:border-gray-400'
                       }`}
                     >
                       <div className="text-center">
-                        <div className="font-semibold">GCash</div>
-                        <div className="text-xs text-gray-600 mt-1">Mobile Wallet</div>
+                        <div className="font-semibold text-sm sm:text-base">GCash</div>
+                        <div className="text-[10px] sm:text-xs text-gray-600 mt-1">Mobile Wallet</div>
                       </div>
                     </button>
                     
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentMethod('unionbank')}
-                      className={`p-4 rounded-lg border-2 transition-all ${
+                      className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                         selectedPaymentMethod === 'unionbank'
                           ? 'border-blue-500 bg-blue-50 text-blue-900'
                           : 'border-gray-300 hover:border-gray-400'
                       }`}
                     >
                       <div className="text-center">
-                        <div className="font-semibold">UnionBank</div>
-                        <div className="text-xs text-gray-600 mt-1">Bank Transfer</div>
+                        <div className="font-semibold text-sm sm:text-base">UnionBank</div>
+                        <div className="text-[10px] sm:text-xs text-gray-600 mt-1">Bank Transfer</div>
                       </div>
                     </button>
                   </div>
                 </div>
 
-                {/* QR Code Display */}
-                <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-                  <div className="flex items-start gap-4">
-                    <QrCode className="w-8 h-8 text-blue-900 flex-shrink-0" />
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-blue-900 mb-2">
-                        {selectedPaymentMethod === 'gcash' ? 'GCash QR Code' : 'UnionBank QR Code'}
-                      </h3>
-                      <p className="text-sm text-gray-700 mb-4">
-                        Scan this QR code with your {selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} app
-                      </p>
-                      
-                      {/* QR Code Image */}
-                      <div className="bg-white p-4 rounded-lg inline-block">
-                        <div className="relative w-96 h-96">
-                          <Image
-                            src={selectedPaymentMethod === 'gcash' 
-                              ? '/images/GcashQR.webp' 
-                              : '/images/UnionbankQR.webp'
-                            }
-                            alt={`${selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} QR Code`}
-                            fill
-                            className="w-full h-auto object-contain max-w-sm"
-                            priority
-                            unoptimized
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Account Details */}
-                      <div className="mt-4 p-3 bg-white rounded-lg border border-blue-200">
-                        <p className="text-sm font-medium text-gray-700">
-                          Or send to:
-                        </p>
-                        {selectedPaymentMethod === 'gcash' ? (
-                          <>
-                            <p className="text-sm mt-1">
-                              <span className="text-gray-600">Number:</span>{' '}
-                              <span className="font-bold text-blue-900">0915 123 4567</span>
-                            </p>
-                            <p className="text-sm mt-1">
-                              <span className="text-gray-600">Name:</span>{' '}
-                              <span className="font-semibold">Michael Quijada Printing Services</span>
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm mt-1">
-                              <span className="text-gray-600">Account Number:</span>{' '}
-                              <span className="font-bold text-blue-900">1234 5678 9012</span>
-                            </p>
-                            <p className="text-sm mt-1">
-                              <span className="text-gray-600">Account Name:</span>{' '}
-                              <span className="font-semibold">Michael Quijada Printing Services</span>
-                            </p>
-                          </>
-                        )}
-                      </div>
+                {/* QR Code Display - Mobile Optimized */}
+                <div className="bg-blue-50 p-4 sm:p-6 rounded-lg border-2 border-blue-200">
+                  <div className="flex items-center justify-center gap-2 mb-3 sm:mb-4">
+                    <QrCode className="w-5 h-5 sm:w-6 sm:h-6 text-blue-900" />
+                    <h3 className="font-semibold text-sm sm:text-base text-blue-900">
+                      {selectedPaymentMethod === 'gcash' ? 'GCash QR Code' : 'UnionBank QR Code'}
+                    </h3>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-700 mb-3 sm:mb-4 text-center">
+                    Scan this QR code with your {selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} app
+                  </p>
+                  
+                  {/* QR Code Image - Mobile Responsive */}
+                  <div className="bg-white p-3 sm:p-4 rounded-lg w-full flex justify-center">
+                    <div className="relative w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 mx-auto">
+                      <Image
+                        src={selectedPaymentMethod === 'gcash' 
+                          ? '/images/GcashQR.webp' 
+                          : '/images/UnionbankQR.webp'
+                        }
+                        alt={`${selectedPaymentMethod === 'gcash' ? 'GCash' : 'UnionBank'} QR Code`}
+                        fill
+                        className="object-contain"
+                        priority
+                        unoptimized
+                        sizes="(max-width: 640px) 192px, (max-width: 768px) 256px, (max-width: 1024px) 320px, 384px"
+                      />
                     </div>
+                  </div>
+                  
+                  {/* Account Details - Mobile Optimized */}
+                  <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 bg-white rounded-lg border border-blue-200">
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">
+                      Or send to:
+                    </p>
+                    {selectedPaymentMethod === 'gcash' ? (
+                      <>
+                        <p className="text-xs sm:text-sm mt-1">
+                          <span className="text-gray-600">Number:</span>{' '}
+                          <span className="font-bold text-blue-900">0977 786 5206</span>
+                        </p>
+                        <p className="text-xs sm:text-sm mt-1">
+                          <span className="text-gray-600">Name:</span>{' '}
+                          <span className="font-semibold">Michael Quijada Printing Services</span>
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs sm:text-sm mt-1">
+                          <span className="text-gray-600">Account Number:</span>{' '}
+                          <span className="font-bold text-blue-900">0027 6001 2214</span>
+                        </p>
+                        <p className="text-xs sm:text-sm mt-1">
+                          <span className="text-gray-600">Account Name:</span>{' '}
+                          <span className="font-semibold">Michael Quijada Printing Services</span>
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {/* Total Amount */}
-                <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-6 rounded-lg">
-                  <p className="text-sm opacity-90 mb-1">Total Amount to Pay</p>
-                  <p className="text-3xl font-bold">₱{orderTotal.toFixed(2)}</p>
+                {/* Total Amount - Mobile Optimized */}
+                <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-4 sm:p-6 rounded-lg">
+                  <p className="text-xs sm:text-sm opacity-90 mb-1">Total Amount to Pay</p>
+                  <p className="text-2xl sm:text-3xl font-bold">₱{orderTotal.toFixed(2)}</p>
                 </div>
 
-                {/* Upload Payment Proof */}
-                <div className="bg-white p-6 border-2 border-gray-200 rounded-lg">
-                  <h3 className="font-semibold mb-4 flex items-center gap-2">
-                    <ImageIcon className="w-5 h-5 text-blue-900" />
+                {/* Upload Payment Proof - Mobile Optimized */}
+                <div className="bg-white p-4 sm:p-6 border-2 border-gray-200 rounded-lg">
+                  <h3 className="font-semibold text-sm sm:text-base mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-900" />
                     Upload Payment Proof
                   </h3>
                   
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">
+                      <label className="block text-xs sm:text-sm font-medium mb-2">
                         Reference Number <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={paymentProof.ref}
                         onChange={(e) => updatePaymentProof({ ref: e.target.value })}
-                        className="w-full p-3 border rounded-lg"
-                        placeholder="Enter reference number (e.g., 1234567890)"
+                        className="w-full p-2.5 sm:p-3 border rounded-lg text-xs sm:text-sm"
+                        placeholder="Enter reference number"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
+                      <label className="block text-xs sm:text-sm font-medium mb-2">
                         Payment Screenshot <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1423,13 +1449,13 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                         <button
                           onClick={() => proofInputRef.current?.click()}
                           type="button"
-                          className="w-full p-6 border-2 border-dashed rounded-lg hover:border-blue-900 hover:bg-blue-50 transition-colors"
+                          className="w-full p-4 sm:p-6 border-2 border-dashed rounded-lg hover:border-blue-900 hover:bg-blue-50 transition-colors"
                         >
-                          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-600 font-medium">
+                          <Upload className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-xs sm:text-sm text-gray-600 font-medium">
                             Click to upload payment screenshot
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-[10px] sm:text-xs text-gray-500 mt-1">
                             JPG, PNG (Max 5MB)
                           </p>
                         </button>
@@ -1437,14 +1463,14 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
                       {/* Upload Progress */}
                       {paymentUploading && (
-                        <div className="p-6 border-2 border-blue-200 bg-blue-50 rounded-lg">
+                        <div className="p-4 sm:p-6 border-2 border-blue-200 bg-blue-50 rounded-lg">
                           <div className="flex items-center gap-3 mb-3">
-                            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                            <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 animate-spin" />
                             <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">
+                              <p className="text-xs sm:text-sm font-medium text-gray-900">
                                 Uploading payment screenshot...
                               </p>
-                              <p className="text-xs text-gray-600">
+                              <p className="text-[10px] sm:text-xs text-gray-600">
                                 {paymentProgress}% complete
                               </p>
                             </div>
@@ -1460,33 +1486,35 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
 
                       {/* Upload Success */}
                       {paymentProof.file && paymentProof.url && !paymentUploading && (
-                        <div className="border-2 border-green-200 bg-green-50 rounded-lg p-4">
-                          <div className="flex items-start gap-3">
+                        <div className="border-2 border-green-200 bg-green-50 rounded-lg p-3 sm:p-4">
+                          <div className="flex items-start gap-2 sm:gap-3">
                             <div className="flex-shrink-0">
                               <Image
                                 src={paymentProof.url}
                                 alt="Payment screenshot"
-                                className="w-20 h-20 object-cover rounded-lg border-2 border-green-300"
+                                width={64}
+                                height={64}
+                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg border-2 border-green-300"
                               />
                             </div>
                             
                             <div className="flex-1 min-w-0">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm text-gray-900 truncate">
+                                  <p className="font-medium text-xs sm:text-sm text-gray-900 truncate">
                                     {paymentProof.file.name}
                                   </p>
-                                  <p className="text-xs text-gray-600">
+                                  <p className="text-[10px] sm:text-xs text-gray-600">
                                     {(paymentProof.file.size / 1024).toFixed(2)} KB
                                   </p>
                                 </div>
-                                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                                <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
                               </div>
                               
                               <div className="mt-2 flex gap-2">
-                                <button
+                                 <button
                                   onClick={() => window.open(paymentProof.url, '_blank')}
-                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                                  className="text-[10px] sm:text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
                                 >
                                   <Eye className="w-3 h-3" />
                                   View Full Size
@@ -1496,7 +1524,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                                     updatePaymentProof({ file: null, url: '' });
                                     setPaymentProgress(0);
                                   }}
-                                  className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
+                                  className="text-[10px] sm:text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
                                 >
                                   <Trash2 className="w-3 h-3" />
                                   Remove
@@ -1505,28 +1533,28 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                             </div>
                           </div>
                           
-                          <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-green-700" />
-                            <span className="text-xs text-green-800 font-medium">
+                          <div className="mt-2 sm:mt-3 p-2 bg-green-100 border border-green-300 rounded flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-700" />
+                            <span className="text-[10px] sm:text-xs text-green-800 font-medium">
                               Payment screenshot uploaded successfully
                             </span>
                           </div>
                         </div>
                       )}
                     </div>
-                  </div>
 
-                  {/* Info Box */}
-                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div className="text-xs text-amber-800">
-                        <p className="font-semibold mb-1">Important:</p>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>Make sure the screenshot clearly shows the payment amount and reference number</li>
-                          <li>The reference number must match the one you entered above</li>
-                          <li>Your order will be verified before processing</li>
-                        </ul>
+                    {/* Info Box - Mobile Optimized */}
+                    <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-[10px] sm:text-xs text-amber-800">
+                          <p className="font-semibold mb-1">Important:</p>
+                          <ul className="list-disc list-inside space-y-0.5 sm:space-y-1">
+                            <li>Make sure the screenshot clearly shows the payment amount and reference number</li>
+                            <li>The reference number must match the one you entered above</li>
+                            <li>Your order will be verified before processing</li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1579,28 +1607,30 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
     }
   };
 
-  return (
+return (
     <>
-      <div className="min-h-screen bg-gray-50 py-8 pt-20">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="flex items-center justify-between mb-8">
+      <div className="min-h-screen bg-gray-50 py-4 sm:py-8 pt-16 sm:pt-20">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-3">
             <button
               onClick={() => (onBack ? onBack() : router.push('/dashboard'))}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors text-sm sm:text-base"
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
               <span>Back to Dashboard</span>
             </button>
-            <h1 className="text-2xl font-bold text-gray-900">New Print Order</h1>
-            <div className="w-32" />
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">New Print Order</h1>
+            <div className="hidden sm:block w-24" />
           </div>
 
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
+          {/* Progress Steps */}
+          <div className="mb-6 sm:mb-8 overflow-x-auto">
+            <div className="flex items-center justify-between min-w-max sm:min-w-0 px-2">
               {steps.map((step, i) => (
-                <div key={i} className="flex flex-col items-center flex-1">
+                <div key={i} className="flex flex-col items-center flex-1 min-w-[70px] sm:min-w-0">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-base font-semibold ${
                       currentStep === i + 1
                         ? 'bg-blue-900 text-white'
                         : currentStep > i + 1
@@ -1608,10 +1638,10 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                         : 'bg-gray-200 text-gray-500'
                     }`}
                   >
-                    {currentStep > i + 1 ? <CheckCircle size={20} /> : i + 1}
+                    {currentStep > i + 1 ? <CheckCircle size={16} className="sm:w-5 sm:h-5" /> : i + 1}
                   </div>
                   <div
-                    className={`text-xs font-medium mt-2 ${
+                    className={`text-[10px] sm:text-xs font-medium mt-1 sm:mt-2 text-center leading-tight ${
                       currentStep === i + 1 ? 'text-blue-900' : 'text-gray-500'
                     }`}
                   >
@@ -1622,6 +1652,7 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
             </div>
           </div>
 
+          {/* Content Area */}
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -1629,18 +1660,19 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
-              className="bg-white rounded-xl shadow-lg p-8 mb-8"
+              className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-6 sm:mb-8"
             >
               {renderStepContent()}
             </motion.div>
           </AnimatePresence>
 
+          {/* Navigation Buttons */}
           {currentStep < 7 && (
-            <div className="flex justify-between">
+            <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 sm:gap-4">
               <button
                 onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 1))}
                 disabled={currentStep === 1}
-                className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                className={`w-full sm:w-auto px-4 sm:px-6 py-3 rounded-lg font-semibold transition-colors ${
                   currentStep === 1
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -1651,12 +1683,12 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
               <button
                 onClick={handleNextStep}
                 disabled={isUploading || paymentUploading}
-                className="px-6 py-3 bg-blue-900 text-white rounded-lg font-semibold hover:bg-blue-800 transition-colors disabled:opacity-50"
+                className="w-full sm:w-auto px-4 sm:px-6 py-3 bg-blue-900 text-white rounded-lg font-semibold hover:bg-blue-800 transition-colors disabled:opacity-50 text-sm sm:text-base"
               >
                 {isUploading || paymentUploading ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Uploading...
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                    <span className="text-sm sm:text-base">Uploading...</span>
                   </span>
                 ) : (
                   currentStep === 6 ? 'Submit Payment & Place Order' : 'Next'
@@ -1666,6 +1698,64 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPrintModeImage && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPrintModeImage(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60]"
+            />
+
+            {/* Modal - Adjusted for Mobile & Tablet */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="fixed inset-4 sm:inset-8 md:inset-12 lg:inset-16 xl:inset-20 bg-white rounded-xl sm:rounded-2xl shadow-2xl z-[70] flex flex-col max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh]"
+            >
+              {/* Header - Mobile Responsive */}
+              <div className="flex items-center justify-between p-3 sm:p-4 md:p-5 border-b flex-shrink-0">
+                <div className="flex-1 min-w-0 mr-2 sm:mr-4">
+                  <h3 className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 truncate">
+                    Print Mode Examples
+                  </h3>
+                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-500 truncate">
+                    Reference guide for different print modes
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPrintModeImage(false)}
+                  className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                  title="Close"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </div>
+
+              {/* Image Container - Mobile & Tablet Optimized */}
+              <div className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 bg-gray-50 flex items-center justify-center min-h-0">
+                <div className="relative w-full h-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl">
+                  <Image
+                    src="/images/example/print-modes.webp"
+                    alt="Print Mode Examples - Full View"
+                    fill
+                    className="object-contain"
+                    unoptimized
+                    sizes="(max-width: 640px) 90vw, (max-width: 768px) 85vw, (max-width: 1024px) 80vw, (max-width: 1280px) 70vw, 1200px"
+                    priority
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <FilePreviewModal
         isOpen={previewModal.isOpen}

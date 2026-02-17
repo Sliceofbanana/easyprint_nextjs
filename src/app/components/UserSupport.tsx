@@ -40,7 +40,6 @@ const UserSupport = () => {
   // ✅ Memoized fetch function
   const fetchMessages = useCallback(async () => {
     try {
-      console.log('📥 Fetching messages...');
       const response = await fetch('/api/messages'); 
       
       if (!response.ok) {
@@ -49,10 +48,8 @@ const UserSupport = () => {
       }
       
       const data = await response.json();
-      console.log('✅ Messages fetched:', data);
       setMessages(data);
     } catch (error) {
-      console.error('❌ Fetch error:', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to load messages',
@@ -91,11 +88,6 @@ const UserSupport = () => {
     setSending(true);
 
     try {
-      console.log('📤 Sending message:', {
-        subject: newMessage.subject,
-        messageLength: newMessage.message.length,
-      });
-
       const response = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -111,8 +103,6 @@ const UserSupport = () => {
         throw new Error(data.error || data.details || 'Failed to send message');
       }
 
-      console.log('✅ Message sent:', data);
-
       toast({
         title: 'Message Sent! 📧',
         description: 'Your message has been sent to support. We will respond soon.',
@@ -122,7 +112,6 @@ const UserSupport = () => {
       setNewMessage({ subject: '', message: '' });
       await fetchMessages(); // ✅ Refresh messages immediately
     } catch (error) {
-      console.error('❌ Send error:', error);
       toast({
         title: 'Send Failed',
         description: error instanceof Error ? error.message : 'Failed to send message',
