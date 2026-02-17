@@ -256,6 +256,16 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         });
         return;
       }
+
+      // ✅ Add validation for Maxim delivery location
+      if (orderDetails.deliveryType === 'maxim' && !orderDetails.deliveryLocation.trim()) {
+        toast({
+          title: 'Delivery Address Required',
+          description: 'Please enter your complete delivery address for Maxim/Lalamove delivery.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     if (currentStep === 4) {
@@ -383,6 +393,22 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
         `Screenshot: ${paymentProof.url}`,
         `Service: ${serviceType}`,
       ];
+
+      adminNotesLines.push(`Delivery: ${orderDetails.deliveryType}`);
+      
+      if (orderDetails.deliveryType === 'campus' && orderDetails.deliveryLocation) {
+        adminNotesLines.push(`Campus Location: ${orderDetails.deliveryLocation}`);
+      }
+
+      // ✅ Add Maxim delivery address to admin notes
+      if (orderDetails.deliveryType === 'maxim' && orderDetails.deliveryLocation) {
+        adminNotesLines.push(`Delivery Address: ${orderDetails.deliveryLocation}`);
+        adminNotesLines.push(`Note: Delivery fee to be computed based on distance`);
+      }
+
+      if (orderDetails.specialInstructions?.trim()) {
+        adminNotesLines.push(`Instructions: ${orderDetails.specialInstructions.trim()}`);
+      }
 
       if (serviceType === 'RUSH_ID') {
         const selectedPackage = RUSH_ID_PACKAGES.find(p => p.id === orderDetails.rushPackage);
@@ -1125,8 +1151,64 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                       <div className="flex-1">
                         <p className="font-semibold text-sm sm:text-base">Pickup</p>
-                        <p className="text-xs sm:text-sm text-gray-600">In person or via Lalamove/Maxim</p>
-                        <p className="text-[10px] sm:text-xs text-amber-600 mt-1">Customer arranges & pays for delivery</p>
+                        <p className="text-xs sm:text-sm text-gray-600">Pick up at our location</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600 text-sm sm:text-base">Free</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Pickup Location Map */}
+                  {orderDetails.deliveryType === 'pickup' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg"
+                    >
+                      <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        Pickup Location
+                      </h3>
+                      
+                      {/* Google Maps Embed - Responsive */}
+                      <div className="relative w-full rounded-lg overflow-hidden border-2 border-blue-300 shadow-md">
+                        <div className="aspect-video w-full">
+                          <iframe
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3925.2042453060876!2d123.88023367503561!3d10.325533289797152!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33a99f001a5b3d6d%3A0x2bd5d2ca1c09bb6e!2sMQ%20Printing%20Services!5e0!3m2!1sen!2sph!4v1771345157126!5m2!1sen!2sph"
+                            width="100%"
+                            height="100%"
+                            style={{ border: 0 }}
+                            allowFullScreen
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            className="absolute inset-0 w-full h-full"
+                            title="MQ Printing Services Location"
+                          />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Maxim/Lalamove Delivery Option */}
+                  <button
+                    type="button"
+                    onClick={() => setOrderDetails({ ...orderDetails, deliveryType: 'maxim', deliveryLocation: '' })}
+                    className={`w-full p-3 sm:p-4 border-2 rounded-lg text-left transition-all ${
+                      orderDetails.deliveryType === 'maxim'
+                        ? 'border-blue-900 bg-blue-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm sm:text-base">Maxim / Lalamove Delivery</p>
+                        <p className="text-xs sm:text-sm text-gray-600">We arrange delivery via Maxim or Lalamove</p>
+                        <p className="text-[10px] sm:text-xs text-amber-600 mt-1">Delivery fee will be computed based on distance</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-blue-900 text-sm sm:text-base">Varies</p>
                       </div>
                     </div>
                   </button>
@@ -1146,20 +1228,76 @@ const OrderSystem: React.FC<OrderSystemProps> = ({ onBack }) => {
                           </div>
                           <div className="group relative">
                             <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
-                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                              Coming Soon!
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                              Currently unavailable
                             </div>
                           </div>
                         </div>
-                        <span className="font-bold text-xs sm:text-sm text-gray-400">+₱10.00</span>
+                        <div className="text-right">
+                          <p className="font-bold text-gray-400 text-sm sm:text-base">₱10</p>
+                        </div>
                       </div>
                     </button>
-                    <div className="absolute top-2 right-2 px-2 py-1 bg-orange-100 text-orange-700 text-[10px] sm:text-xs font-bold rounded-full">
-                      Coming Soon
-                    </div>
                   </div>
                 </div>
+
+                {/* Maxim/Lalamove Location Input */}
+                {orderDetails.deliveryType === 'maxim' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg"
+                  >
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Delivery Address <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={orderDetails.deliveryLocation}
+                      onChange={(e) => setOrderDetails({ ...orderDetails, deliveryLocation: e.target.value })}
+                      className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter complete delivery address (e.g., 123 Main St, Cebu City)"
+                      required
+                    />
+                    <p className="text-xs text-gray-600 mt-2">
+                      <AlertCircle className="w-3 h-3 inline mr-1" />
+                      Please provide a complete address including landmarks for accurate delivery
+                    </p>
+                    <div className="mt-3 p-3 bg-white border border-blue-300 rounded-lg">
+                      <p className="text-xs font-semibold text-blue-900 mb-1">Note:</p>
+                      <p className="text-xs text-gray-700">
+                        Delivery fee will be calculated based on the distance from our location. 
+                        We will contact you with the exact delivery cost before processing your order.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Campus Location Selector - Hidden when disabled */}
+                {orderDetails.deliveryType === 'campus' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4"
+                  >
+                    <label className="block text-sm font-medium mb-2">Select Campus Location</label>
+                    <select
+                      value={orderDetails.deliveryLocation}
+                      onChange={(e) => setOrderDetails({ ...orderDetails, deliveryLocation: e.target.value })}
+                      className="w-full p-2.5 sm:p-3 border rounded-lg text-sm sm:text-base"
+                      required
+                    >
+                      <option value="">Choose a campus...</option>
+                      {cebuLocations.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                  </motion.div>
+                )}
               </div>
 
               <div>
